@@ -53,7 +53,7 @@ namespace PeterDB {
                                 unsigned &appendPageCount);                 // Put current counter values into variables
 
     private:
-        std::fstream fileToBeHandled;
+        std::fstream* fileToBeHandled;
         void readHiddenPage();
         void writeHiddenPage();
     };
