@@ -1,5 +1,6 @@
 #include "src/include/pfm.h"
 #include "pfm_test_utils.h"
+#include <iostream>
 
 namespace PeterDBTesting {
 
@@ -187,21 +188,25 @@ namespace PeterDBTesting {
         ASSERT_EQ(fileHandle.appendPage(inBuffer), success) << "Appending a page should succeed.";
         ASSERT_TRUE(getFileSize(fileName) % PAGE_SIZE == 0) << "File should be based on PAGE_SIZE.";
         ASSERT_GT(getFileSize(fileName), fileSizeBeforeAppend) << "File size should have been increased";
+        std::cout << "After append first page" << std::endl;
 
         // Collect before counters
         ASSERT_EQ(fileHandle.collectCounterValues(readPageCount, writePageCount, appendPageCount), success)
                                     << "Collecting counters should succeed.";
+        std::cout << "After collect counters" << std::endl;
 
         // Update and write the first page
         size_t fileSizeBeforeWrite = getFileSize(fileName);
         inBuffer = malloc(PAGE_SIZE);
         generateData(inBuffer, PAGE_SIZE, 10);
         ASSERT_EQ(fileHandle.writePage(0, inBuffer), success) << "Writing a page should succeed.";
+        std::cout << "Right after update first page" << std::endl;
         ASSERT_TRUE(getFileSize(fileName) % PAGE_SIZE == 0) << "File should be based on PAGE_SIZE.";
         ASSERT_EQ(getFileSize(fileName), fileSizeBeforeWrite) << "File size should not have been increased";
 
         reopenFile();
         ASSERT_TRUE(getFileSize(fileName) % PAGE_SIZE == 0) << "File should be based on PAGE_SIZE.";
+        std::cout << "After update first page" << std::endl;
 
         // Read the page
         outBuffer = malloc(PAGE_SIZE);
@@ -255,6 +260,7 @@ namespace PeterDBTesting {
             fileSizeBeforeAppend = getFileSize(fileName);
         }
         GTEST_LOG_(INFO) << "100 Pages have been successfully appended!";
+        std::cout << "After append 100 page" << std::endl;
 
         // Collect after counters
         ASSERT_EQ(fileHandle.collectCounterValues(
@@ -264,6 +270,7 @@ namespace PeterDBTesting {
 
         reopenFile();
         ASSERT_TRUE(getFileSize(fileName) % PAGE_SIZE == 0) << "File should be based on PAGE_SIZE.";
+        std::cout << "After reopen file" << std::endl;
 
         // Get the number of pages
         ASSERT_EQ(fileHandle.getNumberOfPages(), 100) << "The count should be 100 at this moment.";
