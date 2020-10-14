@@ -25,6 +25,16 @@ namespace PeterDB {
         AttrLength length; // attribute length
     } Attribute;
 
+    // Directory
+    typedef struct Slot {
+        unsigned short offset;  // the beginning of the record
+        unsigned short length; // The length of the record
+    } Slot;
+
+    typedef unsigned short SlotsNum;
+
+    typedef unsigned short FreeBytes;
+
     // Comparison Operator (NOT needed for part 1 of the project)
     typedef enum {
         EQ_OP = 0, // no condition// =

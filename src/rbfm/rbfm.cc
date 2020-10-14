@@ -15,24 +15,36 @@ namespace PeterDB {
     RecordBasedFileManager &RecordBasedFileManager::operator=(const RecordBasedFileManager &) = default;
 
     RC RecordBasedFileManager::createFile(const std::string &fileName) {
-        return -1;
+        PagedFileManager& pfm = PagedFileManager::instance();
+        return pfm.createFile(fileName);
     }
 
     RC RecordBasedFileManager::destroyFile(const std::string &fileName) {
-        return -1;
+        PagedFileManager& pfm = PagedFileManager::instance();
+        return pfm.destroyFile(fileName);
     }
 
     RC RecordBasedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-        return -1;
+        PagedFileManager& pfm = PagedFileManager::instance();
+        return pfm.openFile(fileName,fileHandle);
     }
 
     RC RecordBasedFileManager::closeFile(FileHandle &fileHandle) {
-        return -1;
+        PagedFileManager& pfm = PagedFileManager::instance();
+        return pfm.closeFile(fileHandle);
     }
 
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, RID &rid) {
-        return -1;
+        int attrNum = recordDescriptor.size();
+        int nullInfoByte = ceil(((double) attrNum)/8);
+        char* buffer = new char[nullInfoByte];
+        std::memcpy(buffer, data, nullInfoByte);
+
+        unsigned short
+
+        delete[] buffer;
+        return 0;
     }
 
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,

@@ -1,4 +1,5 @@
 #include "src/include/pfm.h"
+#include <iostream>
 
 namespace PeterDB {
     PagedFileManager &PagedFileManager::instance() {
@@ -25,6 +26,7 @@ namespace PeterDB {
         // If unsuccessful, create empty file at output mode
         else {
             file.open(fileName, std::ios::out | std::ios::binary);
+            initHiddenPage(file);
             file.close();
             return 0;
         }
@@ -46,11 +48,27 @@ namespace PeterDB {
     }
 
     RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-        return fileHandle.setFile(fileName);
+        return fileHandle.openFile(fileName);
     }
 
     RC PagedFileManager::closeFile(FileHandle &fileHandle) {
         return fileHandle.closeFile();
+    }
+
+    void PagedFileManager::initHiddenPage(std::fstream& file) {
+        unsigned readPageCounter = 0;
+        unsigned writePageCounter = 0;
+        unsigned appendPageCounter = 1;
+        unsigned pageNum = 0;
+
+        unsigned* buffer = new unsigned[4];
+        buffer[0] = readPageCounter;
+        buffer[1] = writePageCounter;
+        buffer[2] = appendPageCounter;
+        buffer[3] = pageNum;
+        file.seekp(0, std::ios::beg);
+        file.write((char*) buffer, PAGE_SIZE);
+        delete[] buffer;
     }
 
     FileHandle::FileHandle() {
@@ -59,15 +77,21 @@ namespace PeterDB {
         appendPageCounter = 0;
 
         pageNum = 0;
-        //fileToBeHandled = NULL;
+        fileToBeHandled = new std::fstream;
     }
 
     FileHandle::~FileHandle() = default;
 
-    RC FileHandle::setFile(const std::string &fileName) {
-        // Try open at input mode. If successful, file already exists
-        fileToBeHandled->open(fileName, std::ios::in | std::ios::out | std::ios::binary);
+    RC FileHandle::openFile(const std::string &fileName) {
+        // Test if fileToBeHandled is already open
         if (fileToBeHandled->is_open()) {
+            return -1;
+        }
+        std::cout << "fileToBeHandle is not open" << std::endl;
+        fileToBeHandled->open(fileName, std::ios::in | std::ios::out | std::ios::binary);
+        std::cout << "fileToBeHandle opened" << std::endl;
+        if (fileToBeHandled->is_open()) {
+            readHiddenPage();
             return 0;
         }
         else {
@@ -77,6 +101,7 @@ namespace PeterDB {
 
     RC FileHandle::closeFile() {
         if (fileToBeHandled->is_open()) {
+            writeHiddenPage();
             fileToBeHandled->close();
             return 0;
         }
@@ -88,7 +113,7 @@ namespace PeterDB {
     RC FileHandle::readPage(PageNum pageNum, void *data) {
         if (pageNum < this->pageNum) {
             fileToBeHandled->seekg((1 + pageNum) * PAGE_SIZE);
-            fileToBeHandled->read(static_cast<char*>(data) , PAGE_SIZE);
+            fileToBeHandled->read((char*) data , PAGE_SIZE);
             readPageCounter++;
             writeHiddenPage();
             return 0;
@@ -103,7 +128,7 @@ namespace PeterDB {
             char* buffer = new char[pageNum];
             std::memcpy(buffer, data, PAGE_SIZE);
             fileToBeHandled->seekp((1 + pageNum) * PAGE_SIZE);
-            fileToBeHandled->write(buffer,PAGE_SIZE);
+            fileToBeHandled->write(buffer, PAGE_SIZE);
             writePageCounter++;
             writeHiddenPage();
             return 0;
@@ -114,10 +139,10 @@ namespace PeterDB {
     }
 
     RC FileHandle::appendPage(const void *data) {
-        char* buffer = new char[pageNum];
+        char* buffer = new char[PAGE_SIZE];
         std::memcpy(buffer, data, PAGE_SIZE);
-        fileToBeHandled->seekp(0,std::ios::end);
-        fileToBeHandled->write(buffer,PAGE_SIZE);
+        fileToBeHandled->seekp(0, std::ios::end);
+        fileToBeHandled->write(buffer, PAGE_SIZE);
         appendPageCounter++;
         pageNum++;
         writeHiddenPage();
@@ -142,21 +167,26 @@ namespace PeterDB {
         fileToBeHandled->seekg(0,std::ios::beg);
         fileToBeHandled->read(buffer,16);
 
-        readPageCounter = static_cast<unsigned>(static_cast<unsigned char>(buffer[0]));
-        writePageCounter = static_cast<unsigned>(static_cast<unsigned char>(buffer[1]));
-        appendPageCounter = static_cast<unsigned>(static_cast<unsigned char>(buffer[2]));
-        pageNum = static_cast<unsigned>(static_cast<unsigned char>(buffer[3]));
+        readPageCounter = ((unsigned*) buffer)[0];
+        writePageCounter = ((unsigned*) buffer)[1];
+        appendPageCounter = ((unsigned*) buffer)[2];
+        pageNum = ((unsigned*) buffer)[3];
         delete[] buffer;
+
+        readPageCounter++;  // increment because hidden page is read
     }
 
     void FileHandle::writeHiddenPage() {
-        char* buffer = new char[16];
-        buffer[0] = static_cast<char>(readPageCounter);
-        buffer[1] = static_cast<char>(writePageCounter);
-        buffer[2] = static_cast<char>(appendPageCounter);
-        buffer[3] = static_cast<char>(pageNum);
+        writePageCounter++; // increment because hidden page is written
+
+        unsigned* buffer = new unsigned[4];
+        // buffer[0] = static_cast<char>(readPageCounter);
+        buffer[0] = readPageCounter;
+        buffer[1] = writePageCounter;
+        buffer[2] = appendPageCounter;
+        buffer[3] = pageNum;
         fileToBeHandled->seekp(0, std::ios::beg);
-        fileToBeHandled->write(buffer, PAGE_SIZE);
+        fileToBeHandled->write((char*) buffer, PAGE_SIZE);
         delete[] buffer;
     }
 

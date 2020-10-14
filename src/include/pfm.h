@@ -28,6 +28,8 @@ namespace PeterDB {
         PagedFileManager(const PagedFileManager &);                         // Prevent construction by copying
         PagedFileManager &operator=(const PagedFileManager &);              // Prevent assignment
 
+    private:
+        void initHiddenPage(std::fstream& file);
     };
 
     class FileHandle {
@@ -42,7 +44,7 @@ namespace PeterDB {
         FileHandle();                                                       // Default constructor
         ~FileHandle();                                                      // Destructor
 
-        RC setFile(const std::string &fileName);
+        RC openFile(const std::string &fileName);
         RC closeFile();
 
         RC readPage(PageNum pageNum, void *data);                           // Get a specific page
