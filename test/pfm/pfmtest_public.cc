@@ -185,6 +185,7 @@ namespace PeterDBTesting {
         size_t fileSizeBeforeAppend = getFileSize(fileName);
         inBuffer = malloc(PAGE_SIZE);
         generateData(inBuffer, PAGE_SIZE);
+        std::cout << "Right before append first page" << std::endl;
         ASSERT_EQ(fileHandle.appendPage(inBuffer), success) << "Appending a page should succeed.";
         ASSERT_TRUE(getFileSize(fileName) % PAGE_SIZE == 0) << "File should be based on PAGE_SIZE.";
         ASSERT_GT(getFileSize(fileName), fileSizeBeforeAppend) << "File size should have been increased";
@@ -199,6 +200,7 @@ namespace PeterDBTesting {
         size_t fileSizeBeforeWrite = getFileSize(fileName);
         inBuffer = malloc(PAGE_SIZE);
         generateData(inBuffer, PAGE_SIZE, 10);
+        std::cout << "Right before update first page" << std::endl;
         ASSERT_EQ(fileHandle.writePage(0, inBuffer), success) << "Writing a page should succeed.";
         std::cout << "Right after update first page" << std::endl;
         ASSERT_TRUE(getFileSize(fileName) % PAGE_SIZE == 0) << "File should be based on PAGE_SIZE.";
@@ -250,6 +252,7 @@ namespace PeterDBTesting {
                                     << "Collecting counters should succeed.";
 
         // Append 100 pages
+        std::cout << "Before append 100 page" << std::endl;
         inBuffer = malloc(PAGE_SIZE);
         size_t fileSizeBeforeAppend = getFileSize(fileName);
         for (unsigned j = 0; j < 100; j++) {
