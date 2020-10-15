@@ -61,6 +61,7 @@ namespace PeterDB {
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                           const RID &rid, void *data) {
         dahai;
+        // TODO:
         return -1;
     }
 
