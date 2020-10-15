@@ -143,6 +143,11 @@ namespace PeterDB {
                 const std::vector<std::string> &attributeNames, // a list of projected attributes
                 RBFM_ScanIterator &rbfm_ScanIterator);
 
+        /**********************************/
+        /*****    Helper functions  *******/
+        /**********************************/
+        unsigned getRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data);
+
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
         ~RecordBasedFileManager();                                                  // Prevent unwanted destruction
