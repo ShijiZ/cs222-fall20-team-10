@@ -1,4 +1,5 @@
 #include "src/include/rbfm.h"
+#include <bitset>
 
 namespace PeterDB {
     RecordBasedFileManager &RecordBasedFileManager::instance() {
@@ -36,12 +37,24 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, RID &rid) {
-        int attrNum = recordDescriptor.size();
-        int nullInfoByte = ceil(((double) attrNum)/8);
-        char* buffer = new char[nullInfoByte];
-        std::memcpy(buffer, data, nullInfoByte);
+        unsigned recordLength = getRecordLength(recordDescriptor, data);
+        unsigned bytesNeeded = recordLength + 2*sizeof(short);
 
-        delete[] buffer;
+        unsigned pageNum = fileHandle.getNumberOfPages();
+        if (pageNum == 0) {
+
+        }
+        else {
+            unsigned short freeBytes = getFreeBytes();
+            if (freeBytes < bytesNeeded) {
+                // TODO: For LOOP
+            }
+        }
+        insertRecordData();
+        insertSlot();
+        updateSlotsNumAndFreeBytes();
+
+        fileHandle.writePage(PageNum, pageBuffer);
         return 0;
     }
 
@@ -75,6 +88,40 @@ namespace PeterDB {
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
         return -1;
+    }
+
+    /**********************************/
+    /*****    Helper functions  *******/
+    /**********************************/
+    unsigned RecordBasedFileManager::getRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data) {
+        const int attrNum = recordDescriptor.size();
+        int nullInfoByte = ceil(((double) attrNum)/8);
+        char* buffer = new char[nullInfoByte];
+        std::memcpy(buffer, data, nullInfoByte);
+
+        unsigned recordLength = 0;
+        char* attrPtr = (char*) data + nullInfoByte;
+        for (int byteIndex = 0; byteIndex < attrNum; byteIndex++) {
+            for (int bitIndex = 0; bitIndex < 8; bitIndex++) {
+                bool isNull = buffer[byteIndex] & (short) 1 << (short) (7 - bitIndex);
+                if (!isNull) {
+                    Attribute attr = recordDescriptor[byteIndex*8 + bitIndex];
+                    AttrType attrType = attr.type;
+                    if (attrType == TypeVarChar) {
+                        unsigned varCharLen = 0;
+                        memcpy(&varCharLen, attrPtr, sizeof(unsigned));
+                        recordLength += sizeof(unsigned) + varCharLen;
+                        attrPtr += sizeof(unsigned) + varCharLen;
+                    }
+                    else {
+                        recordLength += 4;
+                        attrPtr += 4;
+                    }
+                }
+            }
+        }
+        delete[] buffer;
+        return recordLength;
     }
 
 } // namespace PeterDB
