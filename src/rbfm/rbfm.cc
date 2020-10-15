@@ -41,8 +41,6 @@ namespace PeterDB {
         char* buffer = new char[nullInfoByte];
         std::memcpy(buffer, data, nullInfoByte);
 
-        unsigned short
-
         delete[] buffer;
         return 0;
     }
