@@ -50,6 +50,9 @@ namespace PeterDB {
                 // TODO: For LOOP
             }
         }
+        
+        void* recordBuffer = malloc(recordLength);
+        generateRecord(recordDescriptor, data, recordBuffer);
         insertRecordData();
         insertSlot();
         updateSlotsNumAndFreeBytes();
@@ -111,12 +114,12 @@ namespace PeterDB {
                     if (attrType == TypeVarChar) {
                         unsigned varCharLen = 0;
                         memcpy(&varCharLen, attrPtr, sizeof(unsigned));
-                        recordLength += sizeof(unsigned) + varCharLen;
+                        recordLength += 2*sizeof(unsigned) + varCharLen;
                         attrPtr += sizeof(unsigned) + varCharLen;
                     }
                     else {
-                        recordLength += 4;
-                        attrPtr += 4;
+                        recordLength += 2*sizeof(unsigned);
+                        attrPtr += sizeof(unsigned);
                     }
                 }
             }
