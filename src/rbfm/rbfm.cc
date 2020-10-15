@@ -42,7 +42,7 @@ namespace PeterDB {
 
         unsigned pageNum = fileHandle.getNumberOfPages();
         if (pageNum == 0) {
-
+            // TODO: Shiji
         }
         else {
             unsigned short freeBytes = getFreeBytes();
