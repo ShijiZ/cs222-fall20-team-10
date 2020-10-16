@@ -119,16 +119,47 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
                                            std::ostream &out) {
-        unsigned NumField = recordDescriptor.size();
-        unsigned NullByteSize = ceil((double) NumField / 8);
+        unsigned NumFields = recordDescriptor.size();
+        unsigned NullByteSize = ceil((double) NumFields / 8);
         auto * NullByte = (unsigned char*)malloc(NullByteSize);
         bool NullBit;
+        Attribute attribute;
+        int attrCounter = 0;
         memcpy(NullByte, (char*) data, NullByteSize);
-        for (int i = 0; i<NullByteSize; i++){
-        int BytePos = i / 8;
-        int Bit = i % 8;
-        }
-        return -1;
+        for (int byteIndex = 0; byteIndex < NullByteSize; byteIndex++) {
+            for (int bitIndex = 0; bitIndex < 8 && attrCounter < NumFields; bitIndex++) {
+                NullBit = NullByte[byteIndex] & (short) 1 << (short) (7 - bitIndex);
+                attribute = recordDescriptor[attrCounter];
+                int attrLen = 0;
+                int attrPtr = 0;
+                out << attribute.name << " ";
+                if (!NullBit){
+                    if (attribute.type == TypeVarChar) {
+                        attrPtr += sizeof(unsigned);
+                        memcpy(&attrLen, data, sizeof(unsigned));
+                        char *buffer = (char *) malloc(sizeof(unsigned));
+                        memcpy(buffer, (char *) data + attrPtr, attrLen);
+                        attrPtr += attrLen;
+                        std::cout << std::string(buffer, attrLen) << "/n";
+                        free(buffer);
+                    }
+                    else{
+                        char *buffer = (char *) malloc(sizeof(unsigned));
+                        memcpy(buffer,(char*)data + attrPtr, sizeof(unsigned));
+                        attrPtr += sizeof(unsigned);
+                        std::cout << *buffer << "/n";
+                        free(buffer);
+                    }
+                }
+                else{
+                    std::cout << "NULL" << "/n";
+                }
+            }
+                attrCounter ++;
+            }
+        std::cout << std::endl;
+        free(NullByte);
+        return 0;
     }
 
     RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,

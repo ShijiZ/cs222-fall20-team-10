@@ -5,6 +5,8 @@
 
 #include "pfm.h"
 #include <cmath>
+#include <string>
+#include <iostream>
 
 namespace PeterDB {
     // Record ID
