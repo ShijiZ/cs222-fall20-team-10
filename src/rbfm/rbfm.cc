@@ -70,7 +70,7 @@ namespace PeterDB {
         }
         free(recordBuffer);
         rid.pageNum = pageNum-1;
-        rid.slotNum = insertSlot(recordLength, pageBuffer);
+        rid.slotNum = insertSlot(recordLength, pageBuffer)-1;
 
         fileHandle.writePage(pageNum-1, pageBuffer);
         free(pageBuffer);
@@ -100,14 +100,32 @@ namespace PeterDB {
         ////////// get record size /////////
         short recordSize;
         int sizePtr = PAGE_SIZE - 2*sizeof(short) - (2*rid.slotNum + 1)*sizeof(short);
-        memcpy(&recordSize, (char*) page + offPtr, sizeof(short));
-        ////////// read record ////////////
+        memcpy(&recordSize, (char*) page + sizePtr, sizeof(short));
+        ////////// generate null byte ////////
         unsigned NumFields = recordDescriptor.size();
+        unsigned NullByteSize = ceil((double) NumFields / 8);
+
+        unsigned char NullByte[NullByteSize];
+        int FieldOffPtr = sizeof(unsigned);
+        for (int byteIndex = 0; byteIndex < NullByteSize; byteIndex++) {
+            double init = 0;
+            for (int bitIndex = 0; bitIndex < 8; bitIndex++) {
+                int buffer;
+                memcpy(&buffer, (char *) page + FieldOffPtr, sizeof(int));
+                FieldOffPtr += sizeof(int);
+                if (buffer == -1) {
+                    init += pow(2, 7-bitIndex);
+                }
+            }
+            NullByte[byteIndex] = init;
+        }
+        ////////// read record ////////////
+        //unsigned NumFields = recordDescriptor.size();
         unsigned sizeFieldDir = NumFields*sizeof(int);
-        memcpy((char*)data, (char*)page + recordOffset, sizeof(unsigned));
-        memcpy((char*)data + sizeof(unsigned),
+        memcpy((char*)data, NullByte, NullByteSize);
+        memcpy((char*)data + NullByteSize,
                (char*)page + recordOffset + sizeof(unsigned) + sizeFieldDir,
-               recordSize - sizeFieldDir - sizeof(unsigned )  );
+               recordSize - sizeFieldDir - sizeof(unsigned ));
         free(page);
         return 0;
     }
@@ -122,41 +140,49 @@ namespace PeterDB {
         unsigned NumFields = recordDescriptor.size();
         unsigned NullByteSize = ceil((double) NumFields / 8);
         auto * NullByte = (unsigned char*)malloc(NullByteSize);
+
         bool NullBit;
         Attribute attribute;
         int attrCounter = 0;
         memcpy(NullByte, (char*) data, NullByteSize);
+        int attrPtr = NullByteSize;
+        std::cout<<"before for loop"<<std::endl;
         for (int byteIndex = 0; byteIndex < NullByteSize; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < NumFields; bitIndex++) {
                 NullBit = NullByte[byteIndex] & (short) 1 << (short) (7 - bitIndex);
                 attribute = recordDescriptor[attrCounter];
                 int attrLen = 0;
-                int attrPtr = 0;
-                out << attribute.name << " ";
+                out << attribute.name << ": ";
+                std::cout<<"before if"<<std::endl;
                 if (!NullBit){
                     if (attribute.type == TypeVarChar) {
+                        memcpy(&attrLen,(char*) data + attrPtr, sizeof(unsigned));
                         attrPtr += sizeof(unsigned);
-                        memcpy(&attrLen, data, sizeof(unsigned));
                         char *buffer = (char *) malloc(sizeof(unsigned));
                         memcpy(buffer, (char *) data + attrPtr, attrLen);
                         attrPtr += attrLen;
-                        std::cout << std::string(buffer, attrLen) << "/n";
+                        out << std::string(buffer, attrLen) << ", ";
                         free(buffer);
                     }
+                    else if (attribute.type == TypeInt){
+                        int buffer;
+                        memcpy(&buffer,(char*) data + attrPtr, sizeof(int));
+                        attrPtr += sizeof(int);
+                        out << buffer << ", ";
+                    }
                     else{
-                        char *buffer = (char *) malloc(sizeof(unsigned));
-                        memcpy(buffer,(char*)data + attrPtr, sizeof(unsigned));
-                        attrPtr += sizeof(unsigned);
-                        std::cout << *buffer << "/n";
-                        free(buffer);
+                        float buffer;
+                        memcpy(&buffer,(char*) data + attrPtr, sizeof(float));
+                        attrPtr += sizeof(float);
+                        out << buffer << ", ";
                     }
                 }
                 else{
-                    std::cout << "NULL" << "/n";
+                    out << "NULL" << ", ";
                 }
+                attrCounter++;
             }
-                attrCounter ++;
-            }
+        }
         std::cout << std::endl;
         free(NullByte);
         return 0;
@@ -188,14 +214,14 @@ namespace PeterDB {
         char* buffer = new char[nullInfoByte];
         std::memcpy(buffer, data, nullInfoByte);
 
-        unsigned recordLength = 0;
+        unsigned recordLength = sizeof(unsigned);
         char* attrPtr = (char*) data + nullInfoByte;
         unsigned attrCounter = 0;
         for (int byteIndex = 0; byteIndex < nullInfoByte; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < attrNum; bitIndex++) {
                 bool isNull = buffer[byteIndex] & (short) 1 << (short) (7 - bitIndex);
                 if (!isNull) {
-                    Attribute attr = recordDescriptor[byteIndex*8 + bitIndex];
+                    Attribute attr = recordDescriptor[attrCounter];
                     AttrType attrType = attr.type;
                     if (attrType == TypeVarChar) {
                         unsigned varCharLen = 0;
@@ -249,13 +275,13 @@ namespace PeterDB {
                         attrReadPtr += sizeof(unsigned);
 
                         // write offset info to offsetDir
-                        offset += varCharLen;
-                        memcpy(offsetDirPtr, &offset, sizeof(unsigned));
+                        offset += sizeof(unsigned) + varCharLen;
+                        memcpy(offsetDirPtr, &offset, sizeof(int));
                         offsetDirPtr += 1;
 
                         // write length info and attribute to attribute region
                         memcpy(attrWritePtr, &varCharLen, sizeof(unsigned));
-                        memcpy(attrWritePtr, attrReadPtr, varCharLen);
+                        memcpy(attrWritePtr+sizeof(unsigned), attrReadPtr, varCharLen);
                         attrWritePtr += sizeof(unsigned) + varCharLen;
                         attrReadPtr += varCharLen;
                     }
