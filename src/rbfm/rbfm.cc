@@ -69,8 +69,9 @@ namespace PeterDB {
             pageNum++;
         }
         free(recordBuffer);
+        rid.pageNum = pageNum-1;
+        rid.slotNum = insertSlot(recordLength, pageBuffer);
 
-        insertSlot(recordLength, pageBuffer);
         fileHandle.writePage(pageNum-1, pageBuffer);
         free(pageBuffer);
         return 0;
@@ -324,7 +325,7 @@ namespace PeterDB {
         return true;
     }
 
-    void RecordBasedFileManager::insertSlot(unsigned recordLength, void* pageBuffer) {
+    unsigned short RecordBasedFileManager::insertSlot(unsigned recordLength, void* pageBuffer) {
         unsigned short slotsNum = getSlotsNum(pageBuffer);
         unsigned short offset = 0;
 
@@ -344,6 +345,8 @@ namespace PeterDB {
         unsigned short newFreeBytes = getFreeBytes(pageBuffer)-2*sizeof(unsigned short);
         memcpy((char*) pageBuffer+PAGE_SIZE-2*sizeof(unsigned short), &newSlotsNum, sizeof(unsigned short));
         memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(unsigned short), &newFreeBytes, sizeof(unsigned short));
+
+        return newSlotsNum;
     }
 
 } // namespace PeterDB
