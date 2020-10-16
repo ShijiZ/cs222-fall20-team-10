@@ -26,16 +26,6 @@ namespace PeterDB {
         AttrLength length; // attribute length
     } Attribute;
 
-    // Directory
-    typedef struct Slot {
-        unsigned short offset;  // the beginning of the record
-        unsigned short length; // The length of the record
-    } Slot;
-
-    typedef unsigned short SlotsNum;
-
-    typedef unsigned short FreeBytes;
-
     // Comparison Operator (NOT needed for part 1 of the project)
     typedef enum {
         EQ_OP = 0, // no condition// =
@@ -148,6 +138,16 @@ namespace PeterDB {
         /*****    Helper functions  *******/
         /**********************************/
         unsigned getRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data);
+
+        void generateRecord(const std::vector<Attribute> &recordDescriptor, const void *data, void *recordBuffer);
+
+        unsigned short getSlotsNum(void* pageBuffer);
+
+        unsigned short getFreeBytes(void* pageBuffer);
+
+        bool insertRecordToPage(void* recordBuffer, void* pageBuffer);
+
+
 
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
