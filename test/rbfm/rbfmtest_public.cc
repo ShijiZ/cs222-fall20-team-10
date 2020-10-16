@@ -38,15 +38,17 @@ namespace PeterDBTesting {
                                     << "Inserting a inBuffer should succeed.";
         std::cout << "after insert record" <<std::endl;
         // Given the rid, read the inBuffer from file
+        std::cout << "before read record" <<std::endl;
         ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rid, outBuffer), success)
                                     << "Reading a inBuffer should succeed.";
-
+        std::cout << "after read record" <<std::endl;
         stream.str(std::string());
         stream.clear();
+        std::cout << "before printRecord" << std::endl ;
         rbfm.printRecord(recordDescriptor, outBuffer, stream);
         ASSERT_NO_FATAL_FAILURE(
                 checkPrintRecord("EmpName: Anteater, Age: 25, Height: 177.8, Salary: 6200", stream.str()));
-
+        std::cout << "after printRecord" << std::endl ;
         // Compare whether the two memory blocks are the same
         ASSERT_EQ(memcmp(inBuffer, outBuffer, recordSize), 0) << "the read data should match the inserted data";
 
