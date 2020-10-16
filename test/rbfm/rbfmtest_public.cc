@@ -24,16 +24,19 @@ namespace PeterDBTesting {
         nullsIndicator = initializeNullFieldsIndicator(recordDescriptor);
 
         // Insert a inBuffer into a file and print the inBuffer
+        std::cout << "before prepareRecord" << std::endl ;
         prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 25, 177.8, 6200, inBuffer, &recordSize);
-
+        std::cout << "after prepareRecord" << std::endl;
         std::ostringstream stream;
+        std::cout << "before printRecord" << std::endl ;
         rbfm.printRecord(recordDescriptor, inBuffer, stream);
+        std::cout << "after printRecord" << std::endl ;
         ASSERT_NO_FATAL_FAILURE(
                 checkPrintRecord("EmpName: Anteater, Age: 25, Height: 177.8, Salary: 6200", stream.str()));
-
+        std::cout << "before insert record";
         ASSERT_EQ(rbfm.insertRecord(fileHandle, recordDescriptor, inBuffer, rid), success)
                                     << "Inserting a inBuffer should succeed.";
-
+        std::cout << "after insert record" <<std::endl;
         // Given the rid, read the inBuffer from file
         ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rid, outBuffer), success)
                                     << "Reading a inBuffer should succeed.";

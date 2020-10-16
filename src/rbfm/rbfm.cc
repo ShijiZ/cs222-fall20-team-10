@@ -125,33 +125,35 @@ namespace PeterDB {
         Attribute attribute;
         int attrCounter = 0;
         memcpy(NullByte, (char*) data, NullByteSize);
+
+        int attrPtr = NullByteSize;
         for (int byteIndex = 0; byteIndex < NullByteSize; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < NumFields; bitIndex++) {
                 NullBit = NullByte[byteIndex] & (short) 1 << (short) (7 - bitIndex);
                 attribute = recordDescriptor[attrCounter];
                 int attrLen = 0;
-                int attrPtr = 0;
                 out << attribute.name << " ";
                 if (!NullBit){
                     if (attribute.type == TypeVarChar) {
+                        //attrPtr += sizeof(unsigned);
+                        memcpy(&attrLen,(char*) data + attrPtr, sizeof(unsigned));
                         attrPtr += sizeof(unsigned);
-                        memcpy(&attrLen, data, sizeof(unsigned));
                         char *buffer = (char *) malloc(sizeof(unsigned));
                         memcpy(buffer, (char *) data + attrPtr, attrLen);
                         attrPtr += attrLen;
-                        std::cout << std::string(buffer, attrLen) << "/n";
+                        out << std::string(buffer, attrLen) << std::endl;
                         free(buffer);
                     }
                     else{
                         char *buffer = (char *) malloc(sizeof(unsigned));
-                        memcpy(buffer,(char*)data + attrPtr, sizeof(unsigned));
+                        memcpy(buffer,(char*) data + attrPtr, sizeof(unsigned));
                         attrPtr += sizeof(unsigned);
-                        std::cout << *buffer << "/n";
+                        out << *buffer << std::endl;
                         free(buffer);
                     }
                 }
                 else{
-                    std::cout << "NULL" << "/n";
+                    out << "NULL" << std::endl;
                 }
             }
                 attrCounter ++;
