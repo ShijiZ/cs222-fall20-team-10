@@ -145,7 +145,15 @@ namespace PeterDB {
 
         unsigned short getFreeBytes(void* pageBuffer);
 
-        bool insertRecordToPage(void* recordBuffer, void* pageBuffer);
+        unsigned short getInsertStartOffset(void* pageBuffer);
+
+        void initNewPage(void* recordBuffer, unsigned recordLength, void* pageBuffer);
+
+        bool insertRecordToPage(void* recordBuffer, unsigned recordLength, void* pageBuffer);
+
+        void insertSlot(unsigned recordLength, void* pageBuffer);
+
+
 
 
 
