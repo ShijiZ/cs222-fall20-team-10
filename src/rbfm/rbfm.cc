@@ -79,9 +79,37 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                           const RID &rid, void *data) {
-        dahai;
-        // TODO:
-        return -1;
+        unsigned numberOfPages = fileHandle.getNumberOfPages();
+        if (rid.pageNum >= numberOfPages){
+            return -1;
+        }
+        void* page = malloc(PAGE_SIZE);
+        fileHandle.readPage(rid.pageNum, page);
+        int NPtr = PAGE_SIZE - 2*sizeof(short);
+        short totSlotNum;
+        memcpy(&totSlotNum, (char*)page + NPtr, sizeof(short ));
+        if (rid.slotNum >= totSlotNum){
+            free(page);
+            return -1;
+        }
+        ////////// get record offset////////
+        short recordOffset;
+        // get offset from page directory
+        int offPtr = PAGE_SIZE - 2*sizeof(short) - (2*rid.slotNum + 2)*sizeof(short);
+        memcpy(&recordOffset, (char*) page + offPtr, sizeof(short));
+        ////////// get record size /////////
+        short recordSize;
+        int sizePtr = PAGE_SIZE - 2*sizeof(short) - (2*rid.slotNum + 1)*sizeof(short);
+        memcpy(&recordSize, (char*) page + offPtr, sizeof(short));
+        ////////// read record ////////////
+        unsigned NumFields = recordDescriptor.size();
+        unsigned sizeFieldDir = NumFields*sizeof(int);
+        memcpy((char*)data, (char*)page + recordOffset, sizeof(unsigned));
+        memcpy((char*)data + sizeof(unsigned),
+               (char*)page + recordOffset + sizeof(unsigned) + sizeFieldDir,
+               recordSize - sizeFieldDir - sizeof(unsigned )  );
+        free(page);
+        return 0;
     }
 
     RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -91,6 +119,15 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
                                            std::ostream &out) {
+        unsigned NumField = recordDescriptor.size();
+        unsigned NullByteSize = ceil((double) NumField / 8);
+        auto * NullByte = (unsigned char*)malloc(NullByteSize);
+        bool NullBit;
+        memcpy(NullByte, (char*) data, NullByteSize);
+        for (int i = 0; i<NullByteSize; i++){
+        int BytePos = i / 8;
+        int Bit = i % 8;
+        }
         return -1;
     }
 
