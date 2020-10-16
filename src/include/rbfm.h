@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "pfm.h"
+#include <cmath>
 
 namespace PeterDB {
     // Record ID
