@@ -144,6 +144,7 @@ namespace PeterDBTesting {
             memset(inBuffer, 0, 1000);
             prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
 
+            std::cout << "Inserting " << i << "th record" << std::endl;
             ASSERT_EQ(rbfm.insertRecord(fileHandle, recordDescriptor, inBuffer, rid), success)
                                         << "Inserting a inBuffer should succeed.";
             if (i==121 || i==122 || i==123 ){
@@ -164,6 +165,7 @@ namespace PeterDBTesting {
         for (int i = 0; i < numRecords; i++) {
             memset(inBuffer, 0, 1000);
             memset(outBuffer, 0, 1000);
+            std::cout << "Reading " << i << "th record" << std::endl;
             ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rids[i], outBuffer), success)
                                         << "Reading a record should succeed.";
             if (i==121 || i==122){
@@ -171,7 +173,7 @@ namespace PeterDBTesting {
             }
 
             //if (i % 1000 == 0) {
-            if (i == 122) {
+            if (i==120 || i==121 || i==122) {
                 std::ostringstream stream;
                 std::cout << "before print 122th" << std::endl;
                 rbfm.printRecord(recordDescriptor, outBuffer, stream);
@@ -181,79 +183,79 @@ namespace PeterDBTesting {
 
             int size = 0;
             prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
-            std::cout << "before the " << i << "th compare" << std::endl;
+            //std::cout << "before the " << i << "th compare" << std::endl;
             ASSERT_EQ(memcmp(outBuffer, inBuffer, sizes[i]), 0) << "the read data should match the inserted data";
-            std::cout << "after the " << i << "th compare" << std::endl;
+            //std::cout << "after the " << i << "th compare" << std::endl;
         }
 
     }
 
-    //TEST_F(RBFM_Test, insert_and_read_massive_records) {
-    //    // Functions tested
-    //    // 1. Create Record-Based File
-    //    // 2. Open Record-Based File
-    //    // 3. Insert Massive Records
-    //    // 4. Reopen Record-Based File
-    //    // 5. Read Massive Records
-    //    // 6. Close Record-Based File
-    //    // 7. Destroy Record-Based File
-    //    PeterDB::RID rid;
-    //    inBuffer = malloc(1000);
-    //    int numRecords = 10000;
-//
-    //    // clean caches
-    //    rids.clear();
-    //    sizes.clear();
-//
-    //    std::vector<PeterDB::Attribute> recordDescriptor;
-    //    createLargeRecordDescriptor(recordDescriptor);
-//
-    //    for (PeterDB::Attribute &i : recordDescriptor) {
-    //        GTEST_LOG_(INFO) << "Attr Name: " << i.name << " Attr Type: " << (PeterDB::AttrType) i.type
-    //                         << " Attr Len: " << i.length;
-    //    }
-//
-    //    // NULL field indicator
-    //    nullsIndicator = initializeNullFieldsIndicator(recordDescriptor);
-//
-    //    // Insert 2000 records into file
-    //    for (int i = 0; i < numRecords; i++) {
-//
-    //        // Test insert Record
-    //        int size = 0;
-    //        memset(inBuffer, 0, 1000);
-    //        prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
-//
-    //        ASSERT_EQ(rbfm.insertRecord(fileHandle, recordDescriptor, inBuffer, rid), success)
-    //                                    << "Inserting a inBuffer should succeed.";
-//
-    //        // Leave rid and sizes for next test to examine
-    //        rids.push_back(rid);
-    //        sizes.push_back(size);
-    //    }
-//
-    //    ASSERT_EQ(rids.size(), numRecords) << "Reading records should succeed.";
-    //    ASSERT_EQ(sizes.size(), (unsigned) numRecords) << "Reading records should succeed.";
-//
-    //    outBuffer = malloc(1000);
-//
-    //    for (int i = 0; i < numRecords; i++) {
-    //        memset(inBuffer, 0, 1000);
-    //        memset(outBuffer, 0, 1000);
-    //        ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rids[i], outBuffer), success)
-    //                                    << "Reading a record should succeed.";
-//
-    //        if (i % 1000 == 0) {
-    //            std::ostringstream stream;
-    //            rbfm.printRecord(recordDescriptor, outBuffer, stream);
-    //            GTEST_LOG_(INFO) << "Returned Data: " << stream.str();
-//
-    //        }
-//
-    //        int size = 0;
-    //        prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
-    //        ASSERT_EQ(memcmp(outBuffer, inBuffer, sizes[i]),
-    //                  0) << "the read data should match the inserted data";
-    //    }
-    //}
+    TEST_F(RBFM_Test, insert_and_read_massive_records) {
+        // Functions tested
+        // 1. Create Record-Based File
+        // 2. Open Record-Based File
+        // 3. Insert Massive Records
+        // 4. Reopen Record-Based File
+        // 5. Read Massive Records
+        // 6. Close Record-Based File
+        // 7. Destroy Record-Based File
+        PeterDB::RID rid;
+        inBuffer = malloc(1000);
+        int numRecords = 10000;
+
+        // clean caches
+        rids.clear();
+        sizes.clear();
+
+        std::vector<PeterDB::Attribute> recordDescriptor;
+        createLargeRecordDescriptor(recordDescriptor);
+
+        for (PeterDB::Attribute &i : recordDescriptor) {
+            GTEST_LOG_(INFO) << "Attr Name: " << i.name << " Attr Type: " << (PeterDB::AttrType) i.type
+                             << " Attr Len: " << i.length;
+        }
+
+        // NULL field indicator
+        nullsIndicator = initializeNullFieldsIndicator(recordDescriptor);
+
+        // Insert 2000 records into file
+        for (int i = 0; i < numRecords; i++) {
+
+            // Test insert Record
+            int size = 0;
+            memset(inBuffer, 0, 1000);
+            prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
+
+            ASSERT_EQ(rbfm.insertRecord(fileHandle, recordDescriptor, inBuffer, rid), success)
+                                        << "Inserting a inBuffer should succeed.";
+
+            // Leave rid and sizes for next test to examine
+            rids.push_back(rid);
+            sizes.push_back(size);
+        }
+
+        ASSERT_EQ(rids.size(), numRecords) << "Reading records should succeed.";
+        ASSERT_EQ(sizes.size(), (unsigned) numRecords) << "Reading records should succeed.";
+
+        outBuffer = malloc(1000);
+
+        for (int i = 0; i < numRecords; i++) {
+            memset(inBuffer, 0, 1000);
+            memset(outBuffer, 0, 1000);
+            ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rids[i], outBuffer), success)
+                                        << "Reading a record should succeed.";
+
+            if (i % 1000 == 0) {
+                std::ostringstream stream;
+                rbfm.printRecord(recordDescriptor, outBuffer, stream);
+                GTEST_LOG_(INFO) << "Returned Data: " << stream.str();
+
+            }
+
+            int size = 0;
+            prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
+            ASSERT_EQ(memcmp(outBuffer, inBuffer, sizes[i]),
+                      0) << "the read data should match the inserted data";
+        }
+    }
 }// namespace PeterDBTesting

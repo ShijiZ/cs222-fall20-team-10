@@ -6,6 +6,7 @@
 #include "pfm.h"
 #include <cmath>
 #include <string>
+#include <cstring>
 #include <iostream>
 
 namespace PeterDB {
