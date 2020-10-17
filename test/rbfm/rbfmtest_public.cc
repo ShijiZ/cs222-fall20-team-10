@@ -166,7 +166,7 @@ namespace PeterDBTesting {
             memset(outBuffer, 0, 1000);
             ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rids[i], outBuffer), success)
                                         << "Reading a record should succeed.";
-            if (i==122){
+            if (i==121 || i==122){
                 std::cout<< "after read the " << i << "th record"<<std::string((char*)outBuffer, sizes[i])<<std::endl;
             }
 
