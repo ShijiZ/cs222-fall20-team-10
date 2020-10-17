@@ -38,24 +38,33 @@ namespace PeterDB {
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, RID &rid) {
         unsigned recordLength = getRecordLength(recordDescriptor, data);
+        std::cout << "Record length is " << recordLength << std::endl;
         unsigned bytesNeeded = recordLength + 2*sizeof(short);
 
         void* recordBuffer = malloc(recordLength);
         generateRecord(recordDescriptor, data, recordBuffer);
+        std::cout << "after generate record " << std::endl;
 
         void* pageBuffer = malloc(PAGE_SIZE);
         unsigned pageNum = fileHandle.getNumberOfPages();
+        unsigned pageToBeWritten = 0;
+        std::cout << "pageNum is " << pageNum << std::endl;
         bool recordInserted = false;
         if (pageNum > 0) {
-            fileHandle.readPage(pageNum, pageBuffer);
+            pageToBeWritten = pageNum-1;
+            fileHandle.readPage(pageToBeWritten, pageBuffer);
             unsigned short freeBytes = getFreeBytes(pageBuffer);
+            //std::cout << "Inside inserRecode(): (1) freeBytes: " << freeBytes << std::endl;
+            //std::cout << "Inside inserRecode(): (1) bytesNeeded: " << bytesNeeded << std::endl;
             if (freeBytes >= bytesNeeded) {
                 recordInserted = insertRecordToPage(recordBuffer, recordLength, pageBuffer);
             }
             else {
-                for (int pageIndex = 0; pageIndex < pageNum-1; pageIndex++) {
-                    fileHandle.readPage(pageNum, pageBuffer);
+                for (pageToBeWritten = 0; pageToBeWritten < pageNum-1; pageToBeWritten++) {
+                    fileHandle.readPage(pageToBeWritten, pageBuffer);
                     freeBytes = getFreeBytes(pageBuffer);
+                    //std::cout << "Inside inserRecode(): (2) freeBytes: " << freeBytes << std::endl;
+                    //std::cout << "Inside inserRecode(): (2) bytesNeeded: " << bytesNeeded << std::endl;
                     if (freeBytes >= bytesNeeded) {
                         recordInserted = insertRecordToPage(recordBuffer, recordLength, pageBuffer);
                         break;
@@ -64,15 +73,19 @@ namespace PeterDB {
             }
         }
         if (!recordInserted) {
+            std::cout << "before initNewpage" << std::endl;
             initNewPage(recordBuffer, recordLength, pageBuffer);
+            std::cout << "after initNewpage" << std::endl;
             fileHandle.appendPage(pageBuffer);
-            pageNum++;
+            std::cout << "after appendpage" << std::endl;
+            pageToBeWritten = pageNum;
         }
         free(recordBuffer);
-        rid.pageNum = pageNum-1;
+
+        rid.pageNum = pageToBeWritten;
         rid.slotNum = insertSlot(recordLength, pageBuffer)-1;
 
-        fileHandle.writePage(pageNum-1, pageBuffer);
+        fileHandle.writePage(pageToBeWritten, pageBuffer);
         free(pageBuffer);
         return 0;
     }
@@ -87,7 +100,7 @@ namespace PeterDB {
         fileHandle.readPage(rid.pageNum, page);
         int NPtr = PAGE_SIZE - 2*sizeof(short);
         short totSlotNum;
-        memcpy(&totSlotNum, (char*)page + NPtr, sizeof(short ));
+        memcpy(&totSlotNum, (char*)page + NPtr, sizeof(short));
         if (rid.slotNum >= totSlotNum){
             free(page);
             return -1;
@@ -105,7 +118,7 @@ namespace PeterDB {
         unsigned NumFields = recordDescriptor.size();
         unsigned NullByteSize = ceil((double) NumFields / 8);
 
-        unsigned char NullByte[NullByteSize];
+        char* NullByte = new char[NullByteSize];
         int FieldOffPtr = sizeof(unsigned);
         for (int byteIndex = 0; byteIndex < NullByteSize; byteIndex++) {
             double init = 0;
@@ -119,13 +132,14 @@ namespace PeterDB {
             }
             NullByte[byteIndex] = init;
         }
+        std::cout<<NullByte[0]<<std::endl;
         ////////// read record ////////////
-        //unsigned NumFields = recordDescriptor.size();
         unsigned sizeFieldDir = NumFields*sizeof(int);
         memcpy((char*)data, NullByte, NullByteSize);
+        delete[] NullByte;
         memcpy((char*)data + NullByteSize,
                (char*)page + recordOffset + sizeof(unsigned) + sizeFieldDir,
-               recordSize - sizeFieldDir - sizeof(unsigned ));
+               recordSize - sizeFieldDir - sizeof(unsigned));
         free(page);
         return 0;
     }
@@ -141,7 +155,6 @@ namespace PeterDB {
         unsigned NullByteSize = ceil((double) NumFields / 8);
         auto * NullByte = (unsigned char*)malloc(NullByteSize);
 
-        bool NullBit;
         Attribute attribute;
         int attrCounter = 0;
         memcpy(NullByte, (char*) data, NullByteSize);
@@ -149,20 +162,23 @@ namespace PeterDB {
         std::cout<<"before for loop"<<std::endl;
         for (int byteIndex = 0; byteIndex < NullByteSize; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < NumFields; bitIndex++) {
-                NullBit = NullByte[byteIndex] & (short) 1 << (short) (7 - bitIndex);
+                bool NullBit = NullByte[byteIndex] & (short) 1 << (short) (7 - bitIndex);
                 attribute = recordDescriptor[attrCounter];
-                int attrLen = 0;
                 out << attribute.name << ": ";
-                std::cout<<"before if"<<std::endl;
+                std::cout<<"before if of " << attrCounter <<std::endl;
                 if (!NullBit){
                     if (attribute.type == TypeVarChar) {
+                        unsigned attrLen;
                         memcpy(&attrLen,(char*) data + attrPtr, sizeof(unsigned));
+                        std::cout << "Inside printRecord, varCharLen = " << attrLen << std::endl;
                         attrPtr += sizeof(unsigned);
-                        char *buffer = (char *) malloc(sizeof(unsigned));
+                        char *buffer = new char[attrLen];
                         memcpy(buffer, (char *) data + attrPtr, attrLen);
+                        std::cout << "Inside printRecord, varChar content = " << std::string(buffer, attrLen) << std::endl;
                         attrPtr += attrLen;
                         out << std::string(buffer, attrLen) << ", ";
-                        free(buffer);
+
+                        delete[]buffer;
                     }
                     else if (attribute.type == TypeInt){
                         int buffer;
@@ -183,7 +199,8 @@ namespace PeterDB {
                 attrCounter++;
             }
         }
-        std::cout << std::endl;
+        std::cout<<"after for loop"<<std::endl;
+        out << std::endl;
         free(NullByte);
         return 0;
     }
@@ -220,7 +237,10 @@ namespace PeterDB {
         for (int byteIndex = 0; byteIndex < nullInfoByte; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < attrNum; bitIndex++) {
                 bool isNull = buffer[byteIndex] & (short) 1 << (short) (7 - bitIndex);
-                if (!isNull) {
+                if (isNull) {
+                    recordLength += sizeof(unsigned);
+                }
+                else {
                     Attribute attr = recordDescriptor[attrCounter];
                     AttrType attrType = attr.type;
                     if (attrType == TypeVarChar) {
@@ -258,13 +278,13 @@ namespace PeterDB {
         char* attrReadPtr = (char*) data + nullInfoByte;
 
         unsigned attrCounter = 0;
-        unsigned offset = 0;
+        unsigned attrOffset = 0;
         for (int byteIndex = 0; byteIndex < nullInfoByte; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < attrNum; bitIndex++) {
                 // Determine if attribute is null
                 bool attrIsNull = nullInfoBuffer[byteIndex] & (short) 1 << (short) (7 - bitIndex);
                 if (!attrIsNull) {
-                    Attribute attr = recordDescriptor[byteIndex*8 + bitIndex];
+                    Attribute attr = recordDescriptor[attrCounter];
                     AttrType attrType = attr.type;
 
                     // Attribute is of type varChar
@@ -275,25 +295,41 @@ namespace PeterDB {
                         attrReadPtr += sizeof(unsigned);
 
                         // write offset info to offsetDir
-                        offset += sizeof(unsigned) + varCharLen;
-                        memcpy(offsetDirPtr, &offset, sizeof(int));
+                        attrOffset += sizeof(unsigned) + varCharLen;
+                        memcpy(offsetDirPtr, &attrOffset, sizeof(int));
                         offsetDirPtr += 1;
-
                         // write length info and attribute to attribute region
                         memcpy(attrWritePtr, &varCharLen, sizeof(unsigned));
                         memcpy(attrWritePtr+sizeof(unsigned), attrReadPtr, varCharLen);
+                        ///////////debug//////
+                        //std::cout<<"VarCharLen is " <<varCharLen<<std::endl;
+
+                        //std::cout<<"varChar content is " << std::string(attrReadPtr,varCharLen)<<std::endl;
+                        /////////////////////
                         attrWritePtr += sizeof(unsigned) + varCharLen;
                         attrReadPtr += varCharLen;
                     }
                     // Attribute is of type int or real
                     else {
                         // write offset info to offsetDir
-                        offset += 4;
-                        memset(offsetDirPtr, offset, sizeof(unsigned));
+                        attrOffset += 4;
+                        memset(offsetDirPtr, attrOffset, sizeof(unsigned));
                         offsetDirPtr += 1;
 
                         // write attribute to attribute region
                         memcpy(attrWritePtr, attrReadPtr, 4);
+                        ///////////debug//////
+                        //if (attrType == TypeInt) {
+                        //    int debug = 0;
+                        //    memcpy(&debug, attrReadPtr, sizeof(int));
+                        //    std::cout<<"int content is " << debug<<std::endl;
+                        //}
+                        //else {
+                        //    float debug = 0.0;
+                        //    memcpy(&debug, attrReadPtr, sizeof(float));
+                        //    std::cout<<"float content is " << debug<<std::endl;
+                        //}
+                        /////////////////////
                         attrWritePtr += 4;
                         attrReadPtr += 4;
                     }
@@ -306,8 +342,11 @@ namespace PeterDB {
                 }
                 attrCounter++;
             }
+            //std::cout << "after generate record for inner loop " << std::endl;
         }
+        //std::cout << "after generate record for outer loop " << std::endl;
         delete[] nullInfoBuffer;
+        //std::cout << "after delete NullInfoBuffer " << std::endl;
     }
 
     unsigned short RecordBasedFileManager::getSlotsNum(void* pageBuffer) {
@@ -353,17 +392,17 @@ namespace PeterDB {
 
     unsigned short RecordBasedFileManager::insertSlot(unsigned recordLength, void* pageBuffer) {
         unsigned short slotsNum = getSlotsNum(pageBuffer);
-        unsigned short offset = 0;
+        unsigned short recordOffset = 0;
 
         if (slotsNum != 0) {
             unsigned short prevOffset;
             unsigned short prevLen;
             memcpy(&prevOffset, (char*) pageBuffer+PAGE_SIZE-(2+2*slotsNum)*sizeof(unsigned short), sizeof(unsigned short));
             memcpy(&prevLen, (char*) pageBuffer+PAGE_SIZE-(1+2*slotsNum)*sizeof(unsigned short), sizeof(unsigned short));
-            offset = prevOffset + prevLen;
+            recordOffset = prevOffset + prevLen;
         }
 
-        memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*slotsNum)*sizeof(unsigned short), &offset, sizeof(unsigned short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*slotsNum)*sizeof(unsigned short), &recordOffset, sizeof(unsigned short));
         memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*slotsNum)*sizeof(unsigned short), &recordLength, sizeof(unsigned short));
 
         // set new slotNum and freeBytes
