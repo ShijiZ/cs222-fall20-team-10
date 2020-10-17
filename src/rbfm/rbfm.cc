@@ -38,17 +38,17 @@ namespace PeterDB {
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, RID &rid) {
         unsigned recordLength = getRecordLength(recordDescriptor, data);
-        std::cout << "Record length is " << recordLength << std::endl;
+        //std::cout << "Record length is " << recordLength << std::endl;
         unsigned bytesNeeded = recordLength + 2*sizeof(short);
 
         void* recordBuffer = malloc(recordLength);
         generateRecord(recordDescriptor, data, recordBuffer);
-        std::cout << "after generate record " << std::endl;
+        //std::cout << "after generate record " << std::endl;
 
         void* pageBuffer = malloc(PAGE_SIZE);
         unsigned pageNum = fileHandle.getNumberOfPages();
         unsigned pageToBeWritten = 0;
-        std::cout << "pageNum is " << pageNum << std::endl;
+        //std::cout << "pageNum is " << pageNum << std::endl;
         bool recordInserted = false;
         if (pageNum > 0) {
             pageToBeWritten = pageNum-1;
@@ -73,11 +73,11 @@ namespace PeterDB {
             }
         }
         if (!recordInserted) {
-            std::cout << "before initNewpage" << std::endl;
+            //std::cout << "before initNewpage" << std::endl;
             initNewPage(recordBuffer, recordLength, pageBuffer);
-            std::cout << "after initNewpage" << std::endl;
+            //std::cout << "after initNewpage" << std::endl;
             fileHandle.appendPage(pageBuffer);
-            std::cout << "after appendpage" << std::endl;
+            //std::cout << "after appendpage" << std::endl;
             pageToBeWritten = pageNum;
         }
         free(recordBuffer);
@@ -132,7 +132,7 @@ namespace PeterDB {
             }
             NullByte[byteIndex] = init;
         }
-        std::cout<<NullByte[0]<<std::endl;
+        //std::cout<<NullByte[0]<<std::endl;
         ////////// read record ////////////
         unsigned sizeFieldDir = NumFields*sizeof(int);
         memcpy((char*)data, NullByte, NullByteSize);
@@ -159,22 +159,22 @@ namespace PeterDB {
         int attrCounter = 0;
         memcpy(NullByte, (char*) data, NullByteSize);
         int attrPtr = NullByteSize;
-        std::cout<<"before for loop"<<std::endl;
+        //std::cout<<"before for loop"<<std::endl;
         for (int byteIndex = 0; byteIndex < NullByteSize; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < NumFields; bitIndex++) {
                 bool NullBit = NullByte[byteIndex] & (short) 1 << (short) (7 - bitIndex);
                 attribute = recordDescriptor[attrCounter];
                 out << attribute.name << ": ";
-                std::cout<<"before if of " << attrCounter <<std::endl;
+                //std::cout<<"before if of " << attrCounter <<std::endl;
                 if (!NullBit){
                     if (attribute.type == TypeVarChar) {
                         unsigned attrLen;
                         memcpy(&attrLen,(char*) data + attrPtr, sizeof(unsigned));
-                        std::cout << "Inside printRecord, varCharLen = " << attrLen << std::endl;
+                        //std::cout << "Inside printRecord, varCharLen = " << attrLen << std::endl;
                         attrPtr += sizeof(unsigned);
                         char *buffer = new char[attrLen];
                         memcpy(buffer, (char *) data + attrPtr, attrLen);
-                        std::cout << "Inside printRecord, varChar content = " << std::string(buffer, attrLen) << std::endl;
+                        //std::cout << "Inside printRecord, varChar content = " << std::string(buffer, attrLen) << std::endl;
                         attrPtr += attrLen;
                         out << std::string(buffer, attrLen) << ", ";
 
@@ -199,7 +199,7 @@ namespace PeterDB {
                 attrCounter++;
             }
         }
-        std::cout<<"after for loop"<<std::endl;
+        //std::cout<<"after for loop"<<std::endl;
         out << std::endl;
         free(NullByte);
         return 0;
