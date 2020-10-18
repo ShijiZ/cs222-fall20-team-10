@@ -40,7 +40,7 @@ namespace PeterDB {
         unsigned writePageCounter;
         unsigned appendPageCounter;
 
-        unsigned pageNum;
+        unsigned numPages;
 
         FileHandle();                                                       // Default constructor
         ~FileHandle();                                                      // Destructor
