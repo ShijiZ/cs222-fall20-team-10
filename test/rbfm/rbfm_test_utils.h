@@ -38,7 +38,6 @@ namespace PeterDBTesting {
 
             // Open the file
             ASSERT_EQ(rbfm.openFile(fileName, fileHandle), success) << "Opening the file should not fail: " << fileName;
-            std::cout << "Inside rbfm test header :" << fileHandle.getNumberOfPages() << std::endl;
 
         }
 

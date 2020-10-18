@@ -137,11 +137,6 @@ namespace PeterDB {
     RC FileHandle::appendPage(const void *data) {
         fileToBeHandled->seekp(0, std::ios::end);
         fileToBeHandled->write((char*) data, PAGE_SIZE);
-
-        // Add information of SlotsNum and FreeBytes at the end of the page
-        //unsigned short SlotsNumAndFreeBytes[] = {0, PAGE_SIZE-2*sizeof(unsigned short)};
-        //fileToBeHandled->write((char*) SlotsNumAndFreeBytes, PAGE_SIZE-2*sizeof(unsigned short));
-
         appendPageCounter++;
         pageNum++;
         writeHiddenPage();
