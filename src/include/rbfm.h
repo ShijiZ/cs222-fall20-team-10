@@ -144,7 +144,7 @@ namespace PeterDB {
 
         void generateRecord(const std::vector<Attribute> &recordDescriptor, const void *data, void *recordBuffer);
 
-        unsigned short getSlotsNum(void* pageBuffer);
+        unsigned short getNumSlots(void* pageBuffer);
 
         unsigned short getFreeBytes(void* pageBuffer);
 

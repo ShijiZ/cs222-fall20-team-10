@@ -24,31 +24,26 @@ namespace PeterDBTesting {
         nullsIndicator = initializeNullFieldsIndicator(recordDescriptor);
 
         // Insert a inBuffer into a file and print the inBuffer
-        std::cout << "before prepareRecord" << std::endl ;
         prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 25, 177.8, 6200, inBuffer, &recordSize);
-        std::cout << "after prepareRecord" << std::endl;
+
         std::ostringstream stream;
-        std::cout << "before printRecord" << std::endl ;
         rbfm.printRecord(recordDescriptor, inBuffer, stream);
-        std::cout << "after printRecord" << std::endl ;
         ASSERT_NO_FATAL_FAILURE(
                 checkPrintRecord("EmpName: Anteater, Age: 25, Height: 177.8, Salary: 6200", stream.str()));
-        std::cout << "before insert record";
+
         ASSERT_EQ(rbfm.insertRecord(fileHandle, recordDescriptor, inBuffer, rid), success)
                                     << "Inserting a inBuffer should succeed.";
-        std::cout << "after insert record" <<std::endl;
+
         // Given the rid, read the inBuffer from file
-        std::cout << "before read record" <<std::endl;
         ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rid, outBuffer), success)
                                     << "Reading a inBuffer should succeed.";
-        std::cout << "after read record" <<std::endl;
+
         stream.str(std::string());
         stream.clear();
-        std::cout << "before printRecord" << std::endl ;
         rbfm.printRecord(recordDescriptor, outBuffer, stream);
         ASSERT_NO_FATAL_FAILURE(
                 checkPrintRecord("EmpName: Anteater, Age: 25, Height: 177.8, Salary: 6200", stream.str()));
-        std::cout << "after printRecord" << std::endl ;
+
         // Compare whether the two memory blocks are the same
         ASSERT_EQ(memcmp(inBuffer, outBuffer, recordSize), 0) << "the read data should match the inserted data";
 
@@ -86,18 +81,17 @@ namespace PeterDBTesting {
         rbfm.printRecord(recordDescriptor, inBuffer, stream);
         ASSERT_NO_FATAL_FAILURE(
                 checkPrintRecord("EmpName: Anteater, Age: NULL, Height: 177.8, Salary: NULL", stream.str()));
-        std::cout<< stream.str()<<std::endl;
+
         ASSERT_EQ(rbfm.insertRecord(fileHandle, recordDescriptor, inBuffer, rid), success)
                                     << "Inserting a record should succeed.";
-        std::cout<<"after insert"<<std::endl;
+
         // Given the rid, read the record from file
         ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rid, outBuffer), success)
                                     << "Reading a record should succeed.";
-        //std::cout<<((char*)outBuffer)[]<<std::endl;
+
         stream.str(std::string());
         stream.clear();
         rbfm.printRecord(recordDescriptor, outBuffer, stream);
-        std::cout<< stream.str()<<std::endl;
         ASSERT_NO_FATAL_FAILURE(
                 checkPrintRecord("EmpName: Anteater, Age: NULL, Height: 177.8, Salary: NULL", stream.str()));
 
@@ -136,7 +130,6 @@ namespace PeterDBTesting {
         nullsIndicator = initializeNullFieldsIndicator(recordDescriptor);
 
         // Insert 2000 records into file
-        std::cout<< "before insert 2000 records"<<std::endl;
         for (int i = 0; i < numRecords; i++) {
 
             // Test insert Record
@@ -144,18 +137,13 @@ namespace PeterDBTesting {
             memset(inBuffer, 0, 1000);
             prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
 
-            std::cout << "Inserting " << i << "th record" << std::endl;
             ASSERT_EQ(rbfm.insertRecord(fileHandle, recordDescriptor, inBuffer, rid), success)
                                         << "Inserting a inBuffer should succeed.";
-            if (i==121 || i==122 || i==123 ){
-                std::cout<< "after insert the " << i << "th record"<<std::string((char*)inBuffer, size)<<std::endl;
-            }
 
             // Leave rid and sizes for next test to examine
             rids.push_back(rid);
             sizes.push_back(size);
         }
-        std::cout<< "after insert 2000 records"<<std::endl;
 
         ASSERT_EQ(rids.size(), numRecords) << "Reading records should succeed.";
         ASSERT_EQ(sizes.size(), (unsigned) numRecords) << "Reading records should succeed.";
@@ -165,27 +153,18 @@ namespace PeterDBTesting {
         for (int i = 0; i < numRecords; i++) {
             memset(inBuffer, 0, 1000);
             memset(outBuffer, 0, 1000);
-            std::cout << "Reading " << i << "th record" << std::endl;
             ASSERT_EQ(rbfm.readRecord(fileHandle, recordDescriptor, rids[i], outBuffer), success)
                                         << "Reading a record should succeed.";
-            if (i==121 || i==122){
-                std::cout<< "after read the " << i << "th record"<<std::string((char*)outBuffer, sizes[i])<<std::endl;
-            }
 
-            //if (i % 1000 == 0) {
-            if (i==120 || i==121 || i==122) {
+            if (i % 1000 == 0) {
                 std::ostringstream stream;
-                std::cout << "before print 122th" << std::endl;
                 rbfm.printRecord(recordDescriptor, outBuffer, stream);
-                std::cout << "after print 122th" << std::endl;
                 GTEST_LOG_(INFO) << "Returned Data: " << stream.str();
             }
 
             int size = 0;
             prepareLargeRecord(recordDescriptor.size(), nullsIndicator, i, inBuffer, &size);
-            //std::cout << "before the " << i << "th compare" << std::endl;
             ASSERT_EQ(memcmp(outBuffer, inBuffer, sizes[i]), 0) << "the read data should match the inserted data";
-            //std::cout << "after the " << i << "th compare" << std::endl;
         }
 
     }
