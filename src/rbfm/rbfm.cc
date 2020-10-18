@@ -288,8 +288,8 @@ namespace PeterDB {
                         attrReadPtr += sizeof(unsigned);
 
                         // write offset info to offsetDir
-                        attrOffset += sizeof(unsigned) + varCharLen;
                         memcpy(offsetDirPtr, &attrOffset, sizeof(int));
+                        attrOffset += sizeof(unsigned) + varCharLen;
                         offsetDirPtr += 1;
 
                         // write length info and attribute to attribute region
@@ -301,8 +301,8 @@ namespace PeterDB {
                     // Attribute is of type int or real
                     else {
                         // write offset info to offsetDir
-                        attrOffset += 4;
                         memcpy(offsetDirPtr, &attrOffset, sizeof(unsigned));
+                        attrOffset += 4;
                         offsetDirPtr += 1;
 
                         // write attribute to attribute region

@@ -15,23 +15,23 @@
 
   Our on-page record has the following format:
   
-  fieldNum | fieldOffsetDir | fieldsSection
-  - fieldNum: an unsigned value storing the total number of fields in the table (including NULL).
-  - fieldOffsetDir: fieldNum of int values storing the end (offset) of corresponding fields (including NULL) against the beginning of fieldsSection.
-  - fieldsSection: each formatted field except for NULL fields are stored here.
+  attrNum | attrOffsetDir | attrSection
+  - attrNum: an unsigned value storing the total number of attributes in the record (including NULL).
+  - attrOffsetDir: attrNum of int values storing the beginning (offset) of corresponding attributes (including NULL) relative to the beginning of attrSection.
+  - attrSection: each formatted attribute except for NULL attributes are stored here.
   
 - Describe how you store a null field.
 
-  For NULL field, its corresponding int value in fieldOffsetDir is -1, and it use no space in fieldTable.
+  For NULL attribute, its corresponding int value in attrOffsetDir is -1, and it use no space in attrSection.
 
 - Describe how you store a VarChar field.
 
-  For VarChar field, we store its length as an unsigned value, then its content is stored after its length.
+  For VarChar attribute, we store its length as an unsigned value, then its content is stored after its length.
 
 
 - Describe how your record design satisfies O(1) field access.
 
-  We first find the corresponding int value in the fieldOffsetDir. If it is -1, the field is NULL. Otherwise, access the field according to its offset.
+  We first find the corresponding int value in the attrOffsetDir. If it is -1, the attribute is NULL. Otherwise, access its beginning according to its offset. If it is of integer or real types, read 4 bytes. If it is of varChar type, read 4 bytes to get its length, then read its content according to its length.
 
 ### 3. Page Format
 - Show your page format design.
@@ -51,7 +51,7 @@
     
   offset | length
       
-  - offset: An unsigned short storing the beginning (offset) of corresponding record.
+  - offset: An unsigned short storing the beginning (offset) of corresponding record relative to the beginning of the page.
   - length: An unsigned short storing the length of corresponding record.
 
 
@@ -65,7 +65,7 @@
   recordInserted = false;
   
   // detect if page number is 0
-  if (pageNum > 0) {
+  if (numPages > 0) {
     freeBytes = getFreeBytes(lastPage);
   
     // insert to the last page
@@ -75,7 +75,7 @@
     }
     // scan from the first page, inser if find capable one
     else {
-      for (i=0; i<pageNum-1; i++) {
+      for (i=0; i<numPages-1; i++) {
         freeBytes = getFreeBytes(i);
         if (freeBytes >= bytesNeeded) {
           insertRecordToPage(record, i);
@@ -89,7 +89,7 @@
   // have to initialize new page and insert
   if (!recordInserted) {
     initNewPage();
-    pageNum++;
+    numPages++;
   }
   
   ```
@@ -105,7 +105,7 @@
   - readPageCounter
   - writePageCounter
   - appendPageCounter
-  - pageNum
+  - numPages
 
 ### 5. Implementation Detail
 - Other implementation details goes here.

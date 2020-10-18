@@ -59,13 +59,13 @@ namespace PeterDB {
         unsigned readPageCounter = 0;
         unsigned writePageCounter = 0;
         unsigned appendPageCounter = 1;
-        unsigned pageNum = 0;
+        unsigned numPages = 0;
 
         unsigned* buffer = new unsigned[PAGE_SIZE/sizeof(unsigned)];
         buffer[0] = readPageCounter;
         buffer[1] = writePageCounter;
         buffer[2] = appendPageCounter;
-        buffer[3] = pageNum;
+        buffer[3] = numPages;
         file.seekp(0, std::ios::beg);
         file.write((char*) buffer, PAGE_SIZE);
         delete[] buffer;
@@ -76,7 +76,7 @@ namespace PeterDB {
         writePageCounter = 0;
         appendPageCounter = 0;
 
-        pageNum = 0;
+        numPages = 0;
         fileToBeHandled = new std::fstream;
     }
 
@@ -109,7 +109,7 @@ namespace PeterDB {
     }
 
     RC FileHandle::readPage(PageNum pageNum, void *data) {
-        if (pageNum < this->pageNum) {
+        if (pageNum < numPages) {
             fileToBeHandled->seekg((1 + pageNum) * PAGE_SIZE);
             fileToBeHandled->read((char*) data , PAGE_SIZE);
             readPageCounter++;
@@ -122,7 +122,7 @@ namespace PeterDB {
     }
 
     RC FileHandle::writePage(PageNum pageNum, const void *data) {
-        if (pageNum < this->pageNum) {
+        if (pageNum < numPages) {
             fileToBeHandled->seekp((1 + pageNum) * PAGE_SIZE);
             fileToBeHandled->write((char*) data, PAGE_SIZE);
             writePageCounter++;
@@ -138,13 +138,13 @@ namespace PeterDB {
         fileToBeHandled->seekp(0, std::ios::end);
         fileToBeHandled->write((char*) data, PAGE_SIZE);
         appendPageCounter++;
-        pageNum++;
+        numPages++;
         writeHiddenPage();
         return 0;
     }
 
     unsigned FileHandle::getNumberOfPages() {
-        return pageNum;
+        return numPages;
     }
 
     RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
@@ -163,7 +163,7 @@ namespace PeterDB {
         readPageCounter = ((unsigned*) buffer)[0];
         writePageCounter = ((unsigned*) buffer)[1];
         appendPageCounter = ((unsigned*) buffer)[2];
-        pageNum = ((unsigned*) buffer)[3];
+        numPages = ((unsigned*) buffer)[3];
         delete[] buffer;
 
         readPageCounter++;  // increment because hidden page is read
@@ -177,7 +177,7 @@ namespace PeterDB {
         buffer[0] = readPageCounter;
         buffer[1] = writePageCounter;
         buffer[2] = appendPageCounter;
-        buffer[3] = pageNum;
+        buffer[3] = numPages;
         fileToBeHandled->seekp(0, std::ios::beg);
         fileToBeHandled->write((char*) buffer, PAGE_SIZE);
         delete[] buffer;
