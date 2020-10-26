@@ -156,7 +156,7 @@ namespace PeterDB {
 
         unsigned short insertSlot(unsigned recordLength, void* pageBuffer);
 
-
+        void shiftRecord(void* pageBuffer, short slotNum, unsigned short distance, bool shiftLeft);
 
 
 
