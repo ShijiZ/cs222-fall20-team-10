@@ -332,13 +332,13 @@ namespace PeterDB {
 
     unsigned short RecordBasedFileManager::getNumSlots(void* pageBuffer) {
         unsigned short numSlots;
-        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-2*sizeof(unsigned short), sizeof(unsigned short));
+        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-2*sizeof(short), sizeof(short));
         return numSlots;
     };
 
     unsigned short RecordBasedFileManager::getFreeBytes(void* pageBuffer) {
         unsigned short freeBytes;
-        memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-sizeof(unsigned short), sizeof(unsigned short));
+        memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-sizeof(short), sizeof(short));
         return freeBytes;
     };
 
@@ -347,18 +347,18 @@ namespace PeterDB {
 
         unsigned short lastRecordOffset;
         unsigned short lastRecordLen;
-        memcpy(&lastRecordOffset, (char*) pageBuffer+PAGE_SIZE-(2+numSlots*2)*sizeof(unsigned short), sizeof(unsigned short));
-        memcpy(&lastRecordLen, (char*) pageBuffer+PAGE_SIZE-(1+numSlots*2)*sizeof(unsigned short), sizeof(unsigned short));
+        memcpy(&lastRecordOffset, (char*) pageBuffer+PAGE_SIZE-(2+numSlots*2)*sizeof(short), sizeof(short));
+        memcpy(&lastRecordLen, (char*) pageBuffer+PAGE_SIZE-(1+numSlots*2)*sizeof(short), sizeof(short));
 
         return lastRecordOffset + lastRecordLen;
     };
 
     void RecordBasedFileManager::initNewPage(void* recordBuffer, unsigned recordLength, void* pageBuffer) {
         memcpy(pageBuffer, recordBuffer, recordLength);
-        unsigned short freeBytes = PAGE_SIZE-recordLength-2*sizeof(unsigned short);
+        unsigned short freeBytes = PAGE_SIZE-recordLength-2*sizeof(short);
         unsigned short numSlots = 0;
-        memcpy((char*) pageBuffer+PAGE_SIZE-2*sizeof(unsigned short), &numSlots, sizeof(unsigned short));
-        memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(unsigned short), &freeBytes, sizeof(unsigned short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-2*sizeof(short), &numSlots, sizeof(short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(short), &freeBytes, sizeof(short));
     }
 
     bool RecordBasedFileManager::insertRecordToPage(void* recordBuffer, unsigned recordLength, void* pageBuffer) {
@@ -367,7 +367,7 @@ namespace PeterDB {
 
         // set new freeBytes
         unsigned short newFreeBytes = getFreeBytes(pageBuffer)-recordLength;
-        memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(unsigned short), &newFreeBytes, sizeof(unsigned short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(short), &newFreeBytes, sizeof(short));
         return true;
     }
 
@@ -379,17 +379,48 @@ namespace PeterDB {
             recordOffset = getInsertStartOffset(pageBuffer);
         }
 
-        memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*numSlots)*sizeof(unsigned short), &recordOffset, sizeof(unsigned short));
-        memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*numSlots)*sizeof(unsigned short), &recordLength, sizeof(unsigned short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*numSlots)*sizeof(short), &recordOffset, sizeof(short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*numSlots)*sizeof(short), &recordLength, sizeof(short));
         //std::cout << "Inside insertSlot, record size within page = " << recordLength<< std::endl;
 
         // set new slotNum and freeBytes
         unsigned short newNumSlots = numSlots + 1;
-        unsigned short newFreeBytes = getFreeBytes(pageBuffer)-2*sizeof(unsigned short);
-        memcpy((char*) pageBuffer+PAGE_SIZE-2*sizeof(unsigned short), &newNumSlots, sizeof(unsigned short));
-        memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(unsigned short), &newFreeBytes, sizeof(unsigned short));
+        unsigned short newFreeBytes = getFreeBytes(pageBuffer)-2*sizeof(short);
+        memcpy((char*) pageBuffer+PAGE_SIZE-2*sizeof(short), &newNumSlots, sizeof(short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(short), &newFreeBytes, sizeof(short));
 
         return newNumSlots;
+    }
+
+    void RecordBasedFileManager::shiftRecord(void* pageBuffer, short slotNum, unsigned short distance, bool shiftLeft) {
+        //short recordOffset;
+        //short recordLength;
+        //memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), sizeof(short));
+        //memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), sizeof(short));
+//
+        //short numSlots = getNumSlots(pageBuffer);
+        //short numRecordsToShift = numSlots-slotNum-1;
+//
+        //short currRecordOffset;
+        //short currRecordLength;
+        //// Shift to the left
+        //if (shiftLeft) {
+        //    for (short i = 1; i <= numRecordsToShift; i++) {
+        //        memcpy(&currRecordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*(slotNum+i))*sizeof(short), sizeof(short));
+        //        memcpy(&currRecordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*(slotNum+i))*sizeof(short), sizeof(short));
+//
+        //        memcpy((char*) pageBuffer+currRecordOffset-distance, (char*) pageBuffer+currRecordOffset, currRecordLength);
+        //    }
+        //}
+        //// Shift to the right
+        //else {
+        //    for (short i = numRecordsToShift; i >= 1; i--) {
+        //        memcpy(&currRecordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*(slotNum+i))*sizeof(short), sizeof(short));
+        //        memcpy(&currRecordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*(slotNum+i))*sizeof(short), sizeof(short));
+//
+        //        memcpy((char*) pageBuffer+currRecordOffset+distance, (char*) pageBuffer+currRecordOffset, currRecordLength);
+        //    }
+        //}
     }
 
 } // namespace PeterDB
