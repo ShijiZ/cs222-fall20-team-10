@@ -148,17 +148,18 @@ namespace PeterDB {
 
         unsigned short getFreeBytes(void* pageBuffer);
 
-        unsigned short getInsertStartOffset(void* pageBuffer);
+        short getInsertStartOffset(void* pageBuffer);
 
         void initNewPage(void* recordBuffer, unsigned recordLength, void* pageBuffer);
 
         bool insertRecordToPage(void* recordBuffer, unsigned recordLength, void* pageBuffer);
 
-        unsigned short insertSlot(unsigned recordLength, void* pageBuffer);
+        short insertSlot(unsigned recordLength, void* pageBuffer);
 
         void shiftRecord(void* pageBuffer, short slotNum, unsigned short distance, bool shiftLeft);
 
-
+        void findRecord(FileHandle &fileHandle, void *pageBuffer,
+                          short &recordOffset, short &recordLength, RID &rid);
 
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
