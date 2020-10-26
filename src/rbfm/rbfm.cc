@@ -150,6 +150,35 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const RID &rid) {
+        unsigned numPages = fileHandle.getNumberOfPages();
+        if (rid.pageNum >= numPages){
+            return -1;
+        }
+        void* pageBuffer = malloc(PAGE_SIZE);
+        fileHandle.readPage(rid.pageNum, pageBuffer);
+        short numSlots;
+        memcpy(&numSlots, (char*)pageBuffer + PAGE_SIZE - 2*sizeof(short), sizeof(short));
+        if (rid.slotNum >= numSlots){
+            free(pageBuffer);
+            return -1;
+        }
+
+        short recordOffset;
+        short recordLength;
+        RID newRid;
+        newRid.pageNum = rid.pageNum;
+        newRid.slotNum = rid.slotNum;
+        findRecord(fileHandle, pageBuffer,recordOffset, recordLength, newRid);
+
+        // record already deleted
+        if (recordOffset == -1) {
+            free(pageBuffer);
+            return -1;
+        }
+
+        shiftRecord(pageBuffer, recordOffset, recordLength, true)
+
+
         return -1;
     }
 
@@ -414,36 +443,28 @@ namespace PeterDB {
         return newNumSlots;
     }
 
-    void RecordBasedFileManager::shiftRecord(void* pageBuffer, short slotNum, unsigned short distance, bool shiftLeft) {
-        //short recordOffset;
-        //short recordLength;
-        //memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), sizeof(short));
-        //memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), sizeof(short));
-//
-        //short numSlots = getNumSlots(pageBuffer);
-        //short numRecordsToShift = numSlots-slotNum-1;
-//
-        //short currRecordOffset;
-        //short currRecordLength;
-        //// Shift to the left
-        //if (shiftLeft) {
-        //    for (short i = 1; i <= numRecordsToShift; i++) {
-        //        memcpy(&currRecordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*(slotNum+i))*sizeof(short), sizeof(short));
-        //        memcpy(&currRecordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*(slotNum+i))*sizeof(short), sizeof(short));
-//
-        //        memcpy((char*) pageBuffer+currRecordOffset-distance, (char*) pageBuffer+currRecordOffset, currRecordLength);
-        //    }
-        //}
-        //// Shift to the right
-        //else {
-        //    for (short i = numRecordsToShift; i >= 1; i--) {
-        //        memcpy(&currRecordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*(slotNum+i))*sizeof(short), sizeof(short));
-        //        memcpy(&currRecordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*(slotNum+i))*sizeof(short), sizeof(short));
-//
-        //        memcpy((char*) pageBuffer+currRecordOffset+distance, (char*) pageBuffer+currRecordOffset, currRecordLength);
-        //    }
-        //}
+    void RecordBasedFileManager::shiftRecord(void* pageBuffer, short recordOffset, short recordLength, short distance) {
+        unsigned short numSlots = getNumSlots(pageBuffer);
+        unsigned short sizeToBeShifted = 0;
+        short currRecordOffset;
+        short currRecordLength;
+        for (short slotNum = 0; slotNum < numSlots; slotNum++) {
+            memcpy(&currRecordOffset, (char*) pageBuffer + PAGE_SIZE - (2*slotNum + 4)*sizeof(short), sizeof(short));
+            if (currRecordOffset > recordOffset) {
+                // Negative distance means shift left; positive distance means shift right
+                short newCurrRecordOffset = currRecordOffset+distance;
+
+                // Update record offset in slot
+                memcpy((char *) pageBuffer + PAGE_SIZE - (2 * slotNum + 4) * sizeof(short), &newCurrRecordOffset, sizeof(short));
+
+                // Accumulate the length of  records to be shifted
+                memcpy(&currRecordLength, (char*) pageBuffer + PAGE_SIZE - (2*slotNum + 3)*sizeof(short), sizeof(short));
+                sizeToBeShifted += currRecordLength;
+            }
+        }
+        memcpy((char*) pageBuffer+recordOffset+distance, (char*) pageBuffer+recordOffset+recordLength, sizeToBeShifted);
     }
+
     void RecordBasedFileManager::findRecord(FileHandle &fileHandle, void *pageBuffer,
                                               short &recordOffset, short &recordLength, RID &rid) {
         // get record offset. If is -1, deleted.
