@@ -102,31 +102,36 @@ namespace PeterDB {
             return -1;
         }
 
+        // get record offset
+        unsigned short recordOffset;
+        int recordOffPtr = PAGE_SIZE - 2*sizeof(short) - (2*rid.slotNum + 2)*sizeof(short);
+        memcpy(&recordOffset, (char*) pageBuffer + recordOffPtr, sizeof(short));
+
         // generate null indicator
         unsigned numAttrs = recordDescriptor.size();
         unsigned nullIndicatorSize = ceil((double) numAttrs/8);
 
         char* nullIndicator = new char[nullIndicatorSize];
-        int attrOffPtr = sizeof(unsigned);
+        int attrOffPtr = recordOffset + sizeof(unsigned);
+        int attrCounter = 0;
         for (int byteIndex = 0; byteIndex < nullIndicatorSize; byteIndex++) {
             char init = 0;
-            for (int bitIndex = 0; bitIndex < 8; bitIndex++) {
+            for (int bitIndex = 0; bitIndex < 8 && attrCounter < numAttrs; bitIndex++) {
                 int attrOffset;
                 memcpy(&attrOffset, (char *) pageBuffer + attrOffPtr, sizeof(int));
                 attrOffPtr += sizeof(int);
+                //std::cout << "attrOffset is " << attrOffset << std::endl;
                 if (attrOffset == -1) {
                     init += pow(2, 7-bitIndex);
                 }
+                attrCounter++;
             }
             nullIndicator[byteIndex] = init;
+            //std::cout << "inside readRecord, init is "<< (int)init<< std::endl;
         }
+        //std::cout << "inside readRecord nullIndicator is "<< nullIndicator[0] << std::endl;
         memcpy((char*)data, nullIndicator, nullIndicatorSize);
         delete[] nullIndicator;
-
-        // get record offset
-        unsigned short recordOffset;
-        int recordOffPtr = PAGE_SIZE - 2*sizeof(short) - (2*rid.slotNum + 2)*sizeof(short);
-        memcpy(&recordOffset, (char*) pageBuffer + recordOffPtr, sizeof(short));
 
         // get record size
         unsigned short recordSize;
@@ -263,7 +268,7 @@ namespace PeterDB {
         unsigned nullIndicatorSize = ceil(((double) numAttrs)/8);
         char* nullIndicatorBuffer = new char[nullIndicatorSize];
         std::memcpy(nullIndicatorBuffer, data, nullIndicatorSize);
-        //std::cout << "Inside generateRecord, nullInfoByte within page = " << nullInfoByte<< std::endl;
+        //std::cout << "Inside generateRecord, nullInfoByte within page = " << nullIndicatorBuffer<< std::endl;
 
         // Create required pointers
         int* offsetDirPtr = (int*) recordBuffer + 1;
@@ -276,6 +281,7 @@ namespace PeterDB {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < numAttrs; bitIndex++) {
                 // Determine if attribute is null
                 bool attrIsNull = nullIndicatorBuffer[byteIndex] & (short) 1 << (short) (7 - bitIndex);
+                //std::cout << "The " << attrCounter << "th attr is null? " << attrIsNull << std::endl;
                 if (!attrIsNull) {
                     Attribute attr = recordDescriptor[attrCounter];
                     AttrType attrType = attr.type;
