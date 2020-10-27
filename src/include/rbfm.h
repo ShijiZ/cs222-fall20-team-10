@@ -140,7 +140,7 @@ namespace PeterDB {
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
-        unsigned getRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data);
+        short getRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data);
 
         void generateRecord(const std::vector<Attribute> &recordDescriptor, const void *data, void *recordBuffer);
 
@@ -150,11 +150,13 @@ namespace PeterDB {
 
         short getInsertStartOffset(void* pageBuffer);
 
+        bool hasEmptySlot(void* pageBuffer);
+
         void initNewPage(void* recordBuffer, unsigned recordLength, void* pageBuffer);
 
-        bool insertRecordToPage(void* recordBuffer, unsigned recordLength, void* pageBuffer);
+        bool insertRecordToPage(void* recordBuffer, short& recordOffset, short recordLength, void* pageBuffer);
 
-        short insertSlot(unsigned recordLength, void* pageBuffer);
+        short reuseOrInsertSlot(short recordOffset, short recordLength, void* pageBuffer);
 
         void shiftRecord(void* pageBuffer, short recordOffset, short recordLength, short distance);
 

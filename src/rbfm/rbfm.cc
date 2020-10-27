@@ -37,9 +37,8 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, RID &rid) {
-        unsigned recordLength = getRecordLength(recordDescriptor, data);
+        short recordLength = getRecordLength(recordDescriptor, data);
         //std::cout << "Inside insertRecord: Record length is " << recordLength << std::endl;
-        unsigned bytesNeeded = recordLength + 2*sizeof(short);
 
         void* recordBuffer = malloc(recordLength);
         generateRecord(recordDescriptor, data, recordBuffer);
@@ -47,6 +46,7 @@ namespace PeterDB {
         void* pageBuffer = malloc(PAGE_SIZE);
         unsigned numPages = fileHandle.getNumberOfPages();
         unsigned pageToBeWritten = 0;
+        short recordOffset = 0;
         //std::cout << "Inside insertRecord: pageNum is " << pageNum << std::endl;
         bool recordInserted = false;
         if (numPages > 0) {
@@ -55,8 +55,13 @@ namespace PeterDB {
             unsigned short freeBytes = getFreeBytes(pageBuffer);
             //std::cout << "Inside inserRecode(): (1) freeBytes: " << freeBytes << std::endl;
             //std::cout << "Inside inserRecode(): (1) bytesNeeded: " << bytesNeeded << std::endl;
+            short bytesNeeded = recordLength;
+            if (!hasEmptySlot(pageBuffer)) {
+                bytesNeeded = recordLength+2*sizeof(short);
+            }
+
             if (freeBytes >= bytesNeeded) {
-                recordInserted = insertRecordToPage(recordBuffer, recordLength, pageBuffer);
+                recordInserted = insertRecordToPage(recordBuffer, recordOffset, recordLength, pageBuffer);
             }
             else {
                 for (pageToBeWritten = 0; pageToBeWritten < numPages-1; pageToBeWritten++) {
@@ -64,8 +69,13 @@ namespace PeterDB {
                     freeBytes = getFreeBytes(pageBuffer);
                     //std::cout << "Inside inserRecode(): (2) freeBytes: " << freeBytes << std::endl;
                     //std::cout << "Inside inserRecode(): (2) bytesNeeded: " << bytesNeeded << std::endl;
+                    bytesNeeded = recordLength;
+                    if (!hasEmptySlot(pageBuffer)) {
+                        bytesNeeded = recordLength+2*sizeof(short);
+                    }
+
                     if (freeBytes >= bytesNeeded) {
-                        recordInserted = insertRecordToPage(recordBuffer, recordLength, pageBuffer);
+                        recordInserted = insertRecordToPage(recordBuffer, recordOffset, recordLength, pageBuffer);
                         break;
                     }
                 }
@@ -80,7 +90,7 @@ namespace PeterDB {
         free(recordBuffer);
 
         rid.pageNum = pageToBeWritten;
-        rid.slotNum = insertSlot(recordLength, pageBuffer)-1;
+        rid.slotNum = reuseOrInsertSlot(recordOffset, recordLength, pageBuffer);
 
         fileHandle.writePage(pageToBeWritten, pageBuffer);
         free(pageBuffer);
@@ -102,10 +112,16 @@ namespace PeterDB {
             return -1;
         }
 
-        // get record offset
         short recordOffset;
-        int recordOffPtr = PAGE_SIZE - 2*sizeof(short) - (2*rid.slotNum + 2)*sizeof(short);
-        memcpy(&recordOffset, (char*) pageBuffer + recordOffPtr, sizeof(short));
+        short recordLength;
+        RID newRid = rid;
+        findRecord(fileHandle, pageBuffer,recordOffset, recordLength, newRid);
+
+        // record already deleted
+        if (recordOffset == -1) {
+            free(pageBuffer);
+            return -1;
+        }
 
         // generate null indicator
         unsigned numAttrs = recordDescriptor.size();
@@ -133,16 +149,11 @@ namespace PeterDB {
         memcpy((char*)data, nullIndicator, nullIndicatorSize);
         delete[] nullIndicator;
 
-        // get record size
-        short recordSize;
-        int recordSizePtr = PAGE_SIZE - 2*sizeof(short) - (2*rid.slotNum + 1)*sizeof(short);
-        memcpy(&recordSize, (char*) pageBuffer + recordSizePtr, sizeof(short));
-
         // read record
         unsigned attrDirSize = numAttrs*sizeof(int);
         memcpy((char*)data + nullIndicatorSize,
                (char*)pageBuffer + recordOffset + sizeof(unsigned) + attrDirSize,
-               recordSize - attrDirSize - sizeof(unsigned));
+               recordLength - attrDirSize - sizeof(unsigned));
         //std::cout << "Inside readRecord, null byte size within page = " << NullByteSize << std::endl;
         free(pageBuffer);
         return 0;
@@ -165,9 +176,7 @@ namespace PeterDB {
 
         short recordOffset;
         short recordLength;
-        RID newRid;
-        newRid.pageNum = rid.pageNum;
-        newRid.slotNum = rid.slotNum;
+        RID newRid = rid;
         findRecord(fileHandle, pageBuffer,recordOffset, recordLength, newRid);
 
         // record already deleted
@@ -176,10 +185,22 @@ namespace PeterDB {
             return -1;
         }
 
-        shiftRecord(pageBuffer, recordOffset, recordLength, true)
+        // shift all records after
+        shiftRecord(pageBuffer, recordOffset, recordLength, -recordLength);
 
+        // label record as deleted
+        recordOffset = -1;
+        memcpy((char*) pageBuffer+PAGE_SIZE-(2*newRid.slotNum+4)*sizeof(short), &recordOffset, sizeof(short));
 
-        return -1;
+        // update freeBytes
+        unsigned short freeBytes = getFreeBytes(pageBuffer);
+        unsigned short newFreeBytes = freeBytes+recordLength;
+        memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(short), &newFreeBytes, sizeof(short));
+
+        // write page back to disk
+        fileHandle.writePage(newRid.pageNum, pageBuffer);
+        free(pageBuffer);
+        return 0;
     }
 
     RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
@@ -273,13 +294,13 @@ namespace PeterDB {
     /**********************************/
     /*****    Helper functions  *******/
     /**********************************/
-    unsigned RecordBasedFileManager::getRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data) {
+    short RecordBasedFileManager::getRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data) {
         const unsigned numAttrs = recordDescriptor.size();
         int nullIndicatorSize = ceil(((double) numAttrs)/8);
         char* nullIndicatorBuffer = new char[nullIndicatorSize];
         std::memcpy(nullIndicatorBuffer, data, nullIndicatorSize);
 
-        unsigned recordLength = sizeof(unsigned);
+        short recordLength = sizeof(unsigned);
         char* attrPtr = (char*) data + nullIndicatorSize;
         unsigned attrCounter = 0;
         for (int byteIndex = 0; byteIndex < nullIndicatorSize; byteIndex++) {
@@ -396,15 +417,35 @@ namespace PeterDB {
     short RecordBasedFileManager::getInsertStartOffset(void* pageBuffer) {
         unsigned short numSlots = getNumSlots(pageBuffer);
 
-        short lastRecordOffset;
-        short lastRecordLen;
-        memcpy(&lastRecordOffset, (char*) pageBuffer+PAGE_SIZE-(2+numSlots*2)*sizeof(short), sizeof(short));
-        memcpy(&lastRecordLen, (char*) pageBuffer+PAGE_SIZE-(1+numSlots*2)*sizeof(short), sizeof(short));
+        short currRecordOffset;
+        short maxRecordOffset = 0;
+        short recordLenWithMaxOffset = 0;
 
-        return lastRecordOffset + lastRecordLen;
-    };
+        // find maxRecordOffset and its record length
+        for (short slotNum = 0; slotNum < numSlots; slotNum++) {
+            memcpy(&currRecordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), sizeof(short));
+            if (currRecordOffset >= maxRecordOffset) {
+                memcpy(&recordLenWithMaxOffset, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), sizeof(short));
+                maxRecordOffset = currRecordOffset;
+            }
+        }
+        return maxRecordOffset + recordLenWithMaxOffset;
+    }
+
+    bool RecordBasedFileManager::hasEmptySlot(void* pageBuffer) {
+        unsigned short numSlots = getNumSlots(pageBuffer);
+        short currRecordOffset;
+        for (short slotNum = 0; slotNum < numSlots; slotNum++) {
+            memcpy(&currRecordOffset, (char*) pageBuffer + PAGE_SIZE - (2*slotNum+4)*sizeof(short), sizeof(short));
+            if (currRecordOffset == -1) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     void RecordBasedFileManager::initNewPage(void* recordBuffer, unsigned recordLength, void* pageBuffer) {
+        memset(pageBuffer, 0, PAGE_SIZE);
         memcpy(pageBuffer, recordBuffer, recordLength);
         unsigned short freeBytes = PAGE_SIZE-recordLength-2*sizeof(short);
         unsigned short numSlots = 0;
@@ -412,9 +453,10 @@ namespace PeterDB {
         memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(short), &freeBytes, sizeof(short));
     }
 
-    bool RecordBasedFileManager::insertRecordToPage(void* recordBuffer, unsigned recordLength, void* pageBuffer) {
-        short insertStartOffset = getInsertStartOffset(pageBuffer);
-        memcpy((char*) pageBuffer+insertStartOffset, recordBuffer, recordLength);
+    bool RecordBasedFileManager::insertRecordToPage(void* recordBuffer, short& recordOffset, short recordLength, void* pageBuffer) {
+        recordOffset = getInsertStartOffset(pageBuffer);
+        //std::cout << "Inside insertRecordToPage: insertStartOffset is " << recordOffset << std::endl;
+        memcpy((char*) pageBuffer+recordOffset, recordBuffer, recordLength);
 
         // set new freeBytes
         unsigned short newFreeBytes = getFreeBytes(pageBuffer)-recordLength;
@@ -422,25 +464,34 @@ namespace PeterDB {
         return true;
     }
 
-    short RecordBasedFileManager::insertSlot(unsigned recordLength, void* pageBuffer) {
+    short RecordBasedFileManager::reuseOrInsertSlot(short recordOffset, short recordLength, void* pageBuffer) {
         unsigned short numSlots = getNumSlots(pageBuffer);
-        short recordOffset = 0;
 
         if (numSlots != 0) {
-            recordOffset = getInsertStartOffset(pageBuffer);
+            short currRecordOffset;
+            // find maxRecordOffset and its record length
+            for (short slotNum = 0; slotNum < numSlots; slotNum++) {
+                memcpy(&currRecordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), sizeof(short));
+
+                // empty slot found
+                if (currRecordOffset == -1) {
+                    memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), &recordOffset, sizeof(short));
+                    memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), &recordLength, sizeof(short));
+                    return slotNum;
+                }
+            }
         }
 
+        // Didn't find empty slot, append a new one
         memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*numSlots)*sizeof(short), &recordOffset, sizeof(short));
         memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*numSlots)*sizeof(short), &recordLength, sizeof(short));
-        //std::cout << "Inside insertSlot, record size within page = " << recordLength<< std::endl;
 
         // set new slotNum and freeBytes
         unsigned short newNumSlots = numSlots + 1;
         unsigned short newFreeBytes = getFreeBytes(pageBuffer)-2*sizeof(short);
         memcpy((char*) pageBuffer+PAGE_SIZE-2*sizeof(short), &newNumSlots, sizeof(short));
         memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(short), &newFreeBytes, sizeof(short));
-
-        return newNumSlots;
+        return newNumSlots-1;
     }
 
     void RecordBasedFileManager::shiftRecord(void* pageBuffer, short recordOffset, short recordLength, short distance) {
@@ -462,7 +513,7 @@ namespace PeterDB {
                 sizeToBeShifted += currRecordLength;
             }
         }
-        memcpy((char*) pageBuffer+recordOffset+distance, (char*) pageBuffer+recordOffset+recordLength, sizeToBeShifted);
+        memcpy((char*) pageBuffer+recordOffset+recordLength+distance, (char*) pageBuffer+recordOffset+recordLength, sizeToBeShifted);
     }
 
     void RecordBasedFileManager::findRecord(FileHandle &fileHandle, void *pageBuffer,
