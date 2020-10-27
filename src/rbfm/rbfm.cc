@@ -252,9 +252,27 @@ namespace PeterDB {
         newRid.slotNum = rid.slotNum;
         findRecord(fileHandle, pageBuffer,
                      recordOffset, recordLength, newRid) ;
+        if (recordOffset == -1){
+            return -1;
+        }
         short newRecordLen = getRecordLength(recordDescriptor, data);
         short distance = newRecordLen - recordLength;
+        void* newRecordBuffer = malloc(newRecordLen);
+        generateRecord(recordDescriptor, data,newRecordBuffer);
+        if(distance <= 0){
+            memcpy((char*)pageBuffer + recordOffset, newRecordBuffer, newRecordLen);
+            shiftRecord(pageBuffer, recordOffset, recordLength, distance);
+        }
+        if (distance > 0){
+            unsigned short freeBytes = getFreeBytes(pageBuffer);
+            if (freeBytes >= distance){
+                shiftRecord(pageBuffer, recordOffset, recordLength, distance);
+                memcpy((char*)pageBuffer + recordOffset, newRecordBuffer, newRecordLen);
+            }
+            else{
 
+            }
+        }
         return -1;
     }
 
