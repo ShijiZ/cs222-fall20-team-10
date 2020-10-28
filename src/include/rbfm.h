@@ -138,16 +138,13 @@ namespace PeterDB {
                 const std::vector<std::string> &attributeNames, // a list of projected attributes
                 RBFM_ScanIterator &rbfm_ScanIterator);
 
+    private:
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
-        short getRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data);
+        short generateRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data);
 
         void generateRecord(const std::vector<Attribute> &recordDescriptor, const void *data, void *recordBuffer);
-
-        unsigned short getNumSlots(void* pageBuffer);
-
-        unsigned short getFreeBytes(void* pageBuffer);
 
         short getInsertStartOffset(void* pageBuffer);
 
@@ -161,8 +158,28 @@ namespace PeterDB {
 
         void shiftRecord(void* pageBuffer, short recordOffset, short recordLength, short distance);
 
-        void findRecord(FileHandle &fileHandle, void *pageBuffer,
-                          short &recordOffset, short &recordLength, RID &rid);
+        RC checkAndFindRecord(FileHandle &fileHandle, void *pageBuffer, short &recordOffset, short &recordLength, RID &rid);
+
+        RC findRecord(FileHandle &fileHandle, void *pageBuffer, short &recordOffset, short &recordLength, RID &rid);
+
+        /*********************************************/
+        /*****    Getter and Setter functions  *******/
+        /*********************************************/
+        unsigned short getNumSlots(void* pageBuffer);
+
+        unsigned short getFreeBytes(void* pageBuffer);
+
+        short getRecordLength(void* pageBuffer, unsigned short slotNum);
+
+        short getRecordOffset(void* pageBuffer, unsigned short slotNum);
+
+        void setNumSlots(void* pageBuffer, unsigned short numSlots);
+
+        void setFreeBytes(void* pageBuffer, unsigned short freeBytes);
+
+        void setRecordLength(void* pageBuffer, unsigned short slotNum, short recordLength);
+
+        void setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset);
 
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
