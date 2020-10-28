@@ -9,6 +9,7 @@
 #include <cstring>
 #include <iostream>
 
+
 namespace PeterDB {
     // Record ID
     typedef struct {
@@ -156,7 +157,7 @@ namespace PeterDB {
 
         bool insertRecordToPage(void* recordBuffer, short& recordOffset, short recordLength, void* pageBuffer);
 
-        short reuseOrInsertSlot(short recordOffset, short recordLength, void* pageBuffer);
+        unsigned short reuseOrInsertSlot(short recordOffset, short recordLength, void* pageBuffer);
 
         void shiftRecord(void* pageBuffer, short recordOffset, short recordLength, short distance);
 

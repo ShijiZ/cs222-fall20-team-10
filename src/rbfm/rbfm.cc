@@ -105,8 +105,10 @@ namespace PeterDB {
         }
         void* pageBuffer = malloc(PAGE_SIZE);
         fileHandle.readPage(rid.pageNum, pageBuffer);
-        short numSlots;
+        unsigned short numSlots;
         memcpy(&numSlots, (char*)pageBuffer + PAGE_SIZE - 2*sizeof(short), sizeof(short));
+        //std::cout<<"inside readRecord slotNum is "<<rid.slotNum<<std::endl;
+        //std::cout<<"inside readRecord numSlots is "<<numSlots<<std::endl;
         if (rid.slotNum >= numSlots){
             free(pageBuffer);
             return -1;
@@ -116,7 +118,8 @@ namespace PeterDB {
         short recordLength;
         RID newRid = rid;
         findRecord(fileHandle, pageBuffer,recordOffset, recordLength, newRid);
-
+        //std::cout<<"inside readRecord after findRecord pageNum is "<<newRid.pageNum<<std::endl;
+        //std::cout<<"inside readRecord after findRecord slotNum is "<<newRid.slotNum<<std::endl;
         // record already deleted
         if (recordOffset == -1) {
             free(pageBuffer);
@@ -167,11 +170,11 @@ namespace PeterDB {
         }
         void* pageBuffer = malloc(PAGE_SIZE);
         fileHandle.readPage(rid.pageNum, pageBuffer);
-        short numSlots;
+        unsigned short numSlots;
         memcpy(&numSlots, (char*)pageBuffer + PAGE_SIZE - 2*sizeof(short), sizeof(short));
         if (rid.slotNum >= numSlots){
             free(pageBuffer);
-            return -1;
+            return -2;
         }
 
         short recordOffset;
@@ -182,7 +185,7 @@ namespace PeterDB {
         // record already deleted
         if (recordOffset == -1) {
             free(pageBuffer);
-            return -1;
+            return -3;
         }
 
         // shift all records after
@@ -254,13 +257,14 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                             const void *data, const RID &rid) {
+
         unsigned numPages = fileHandle.getNumberOfPages();
         if (rid.pageNum >= numPages) {
             return -1;
         }
         void* pageBuffer = malloc(PAGE_SIZE);
         fileHandle.readPage(rid.pageNum, pageBuffer);
-        short numSlots;
+        unsigned short numSlots;
         memcpy(&numSlots, (char*)pageBuffer + PAGE_SIZE - 2*sizeof(short), sizeof(short));
         if (rid.slotNum >= numSlots){
             free(pageBuffer);
@@ -271,30 +275,80 @@ namespace PeterDB {
         RID newRid;
         newRid.pageNum = rid.pageNum;
         newRid.slotNum = rid.slotNum;
-        findRecord(fileHandle, pageBuffer,
-                     recordOffset, recordLength, newRid) ;
+        findRecord(fileHandle, pageBuffer,recordOffset, recordLength, newRid);
         if (recordOffset == -1){
+            free(pageBuffer);
             return -1;
         }
         short newRecordLen = getRecordLength(recordDescriptor, data);
         short distance = newRecordLen - recordLength;
+        unsigned short freeBytes = getFreeBytes(pageBuffer);
+        unsigned short newFreeBytes = freeBytes - distance;
         void* newRecordBuffer = malloc(newRecordLen);
         generateRecord(recordDescriptor, data,newRecordBuffer);
         if(distance <= 0){
             memcpy((char*)pageBuffer + recordOffset, newRecordBuffer, newRecordLen);
             shiftRecord(pageBuffer, recordOffset, recordLength, distance);
+            //set free space
+            memcpy((char*)pageBuffer + PAGE_SIZE - sizeof(short), &newFreeBytes, sizeof(short));
+            // modify record length
+            memcpy((char*)pageBuffer + PAGE_SIZE - (2*newRid.slotNum+3) * sizeof(short), &newRecordLen, sizeof(short));
         }
-        if (distance > 0){
-            unsigned short freeBytes = getFreeBytes(pageBuffer);
+        else {
             if (freeBytes >= distance){
                 shiftRecord(pageBuffer, recordOffset, recordLength, distance);
                 memcpy((char*)pageBuffer + recordOffset, newRecordBuffer, newRecordLen);
+                // set free space
+                memcpy((char*)pageBuffer + PAGE_SIZE - sizeof(short), &newFreeBytes, sizeof(short));
+                // modify record length
+                memcpy((char*)pageBuffer + PAGE_SIZE - (2*newRid.slotNum+3) * sizeof(short), &newRecordLen, sizeof(short));
             }
             else{
+                void* newPageBuffer = malloc(PAGE_SIZE);
+                unsigned pageToBeUpdate = 0;
+                short newRecordOffset = 0;
+                bool recordUpdated = false;
+                if (numPages > 1){
+                    for (pageToBeUpdate = 0; pageToBeUpdate < numPages-1; pageToBeUpdate++){
+                        fileHandle.readPage(pageToBeUpdate, newPageBuffer);
+                        unsigned short curFreeBytes = getFreeBytes(newPageBuffer);
+                        short bytesNeeded = newRecordLen;
+                        if (!hasEmptySlot(newPageBuffer)){
+                            bytesNeeded = newRecordLen + 2*sizeof(short);
+                        }
+                        if (curFreeBytes >= bytesNeeded){
+                            recordUpdated = insertRecordToPage(newRecordBuffer, newRecordOffset, newRecordLen, newPageBuffer);
+                            break;
+                        }
+                    }
+                }
+                if(!recordUpdated){
+                    initNewPage(newRecordBuffer, newRecordLen, newPageBuffer);
+                    fileHandle.appendPage(newPageBuffer);
+                    pageToBeUpdate = numPages;
+                }
+
+                unsigned newPageNum = pageToBeUpdate;
+                short newSlotNum = reuseOrInsertSlot(newRecordOffset, newRecordLen, newPageBuffer);
+                fileHandle.writePage(pageToBeUpdate,newPageBuffer);
+                free(newPageBuffer);
+                // set the original page (pageBuffer)
+                memcpy((char*)pageBuffer + recordOffset, &newPageNum, sizeof(unsigned));
+                memcpy((char*)pageBuffer + recordOffset + sizeof(unsigned), &newSlotNum, sizeof(short));
+                shiftRecord(pageBuffer, recordOffset, recordLength, sizeof(unsigned)+sizeof(short)-recordLength);
+                newFreeBytes = freeBytes - (sizeof(unsigned)+sizeof(short)-recordLength);
+                memcpy((char*)pageBuffer + PAGE_SIZE - sizeof(short), &newFreeBytes, sizeof(short));
+                short ptrIndicator = -1;
+                memcpy((char*)pageBuffer + PAGE_SIZE - (2*newRid.slotNum+3)*sizeof(short), &ptrIndicator, sizeof(short));
 
             }
         }
-        return -1;
+        memcpy(&numSlots, (char*)pageBuffer + PAGE_SIZE - 2*sizeof(short), sizeof(short));
+        free(newRecordBuffer);
+        fileHandle.writePage(newRid.pageNum, pageBuffer);
+        free(pageBuffer);
+        return 0;
+
     }
 
     RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -381,6 +435,7 @@ namespace PeterDB {
                         // get varChar length
                         unsigned varCharLen = 0;
                         memcpy(&varCharLen, attrReadPtr, sizeof(unsigned));
+                        //std::cout <<"inside generateRecord varCharLen is "<< varCharLen <<std::endl;
                         attrReadPtr += sizeof(unsigned);
 
                         // write offset info to offsetDir
@@ -440,7 +495,7 @@ namespace PeterDB {
         short recordLenWithMaxOffset = 0;
 
         // find maxRecordOffset and its record length
-        for (short slotNum = 0; slotNum < numSlots; slotNum++) {
+        for (unsigned short slotNum = 0; slotNum < numSlots; slotNum++) {
             memcpy(&currRecordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), sizeof(short));
             if (currRecordOffset >= maxRecordOffset) {
                 memcpy(&recordLenWithMaxOffset, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), sizeof(short));
@@ -453,7 +508,7 @@ namespace PeterDB {
     bool RecordBasedFileManager::hasEmptySlot(void* pageBuffer) {
         unsigned short numSlots = getNumSlots(pageBuffer);
         short currRecordOffset;
-        for (short slotNum = 0; slotNum < numSlots; slotNum++) {
+        for (unsigned short slotNum = 0; slotNum < numSlots; slotNum++) {
             memcpy(&currRecordOffset, (char*) pageBuffer + PAGE_SIZE - (2*slotNum+4)*sizeof(short), sizeof(short));
             if (currRecordOffset == -1) {
                 return true;
@@ -482,13 +537,13 @@ namespace PeterDB {
         return true;
     }
 
-    short RecordBasedFileManager::reuseOrInsertSlot(short recordOffset, short recordLength, void* pageBuffer) {
+    unsigned short RecordBasedFileManager::reuseOrInsertSlot(short recordOffset, short recordLength, void* pageBuffer) {
         unsigned short numSlots = getNumSlots(pageBuffer);
 
         if (numSlots != 0) {
             short currRecordOffset;
             // find maxRecordOffset and its record length
-            for (short slotNum = 0; slotNum < numSlots; slotNum++) {
+            for (unsigned short slotNum = 0; slotNum < numSlots; slotNum++) {
                 memcpy(&currRecordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), sizeof(short));
 
                 // empty slot found
@@ -517,7 +572,7 @@ namespace PeterDB {
         unsigned short sizeToBeShifted = 0;
         short currRecordOffset;
         short currRecordLength;
-        for (short slotNum = 0; slotNum < numSlots; slotNum++) {
+        for (unsigned short slotNum = 0; slotNum < numSlots; slotNum++) {
             memcpy(&currRecordOffset, (char*) pageBuffer + PAGE_SIZE - (2*slotNum + 4)*sizeof(short), sizeof(short));
             if (currRecordOffset > recordOffset) {
                 // Negative distance means shift left; positive distance means shift right
@@ -547,7 +602,7 @@ namespace PeterDB {
         int recordLenPtr = PAGE_SIZE - 2*sizeof(short) - (2*rid.slotNum + 1)*sizeof(short);
         memcpy(&recordLength, (char*) pageBuffer + recordLenPtr, sizeof(short));
         unsigned pageNum ;
-        short slotNum;
+        unsigned short slotNum;
         while (recordLength == -1){
             memcpy(&pageNum, (char*) pageBuffer + recordOffset, sizeof(unsigned));
             memcpy(&slotNum, (char*) pageBuffer + recordOffset + sizeof(unsigned), sizeof(short));
