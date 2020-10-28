@@ -353,7 +353,63 @@ namespace PeterDB {
 
     RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                              const RID &rid, const std::string &attributeName, void *data) {
-        return -1;
+        unsigned numPages = fileHandle.getNumberOfPages();
+        if (rid.pageNum >= numPages){
+            return -1;
+        }
+        void* pageBuffer = malloc(PAGE_SIZE);
+        fileHandle.readPage(rid.pageNum, pageBuffer);
+        short numSlots;
+        memcpy(&numSlots, (char*)pageBuffer + PAGE_SIZE - 2*sizeof(short), sizeof(short));
+        if (rid.slotNum >= numSlots){
+            free(pageBuffer);
+            return -1;
+        }
+
+        short recordOffset;
+        short recordLength;
+        RID newRid = rid;
+        findRecord(fileHandle, pageBuffer,recordOffset, recordLength, newRid);
+
+        // record already deleted
+        if (recordOffset == -1) {
+            free(pageBuffer);
+            return -1;
+        }
+
+        int attrOffPtr = recordOffset + sizeof(unsigned);
+        const unsigned numAttrs = recordDescriptor.size();
+        for (int attrIndex = 0; attrIndex < numAttrs; attrIndex++) {
+            Attribute attr = recordDescriptor[attrIndex];
+            if (attr.name == attributeName) {
+                int attrOffset;
+                memcpy(&attrOffset, (char*) pageBuffer+attrOffPtr, sizeof(int));
+
+                // attribute is null
+                if (attrOffset == -1) {
+                    char nullIndicator = 0;  // 00000000
+                    memcpy((char*)data, &nullIndicator, 1);
+                }
+                // attribute is not null
+                else {
+                    char nullIndicator = 128;  // 10000000
+                    memcpy((char*)data, &nullIndicator, 1);
+
+                    int attrPtr = recordOffset + sizeof(unsigned) + numAttrs*sizeof(int) + attrOffset;
+                    if (attr.type == TypeVarChar) {
+                        unsigned varCharLen = 0;
+                        memcpy(&varCharLen, (char*) pageBuffer+attrPtr, sizeof(unsigned));
+                        memcpy((char*)data, (char*) pageBuffer+attrPtr, sizeof(unsigned)+varCharLen);
+                    }
+                    else {
+                        memcpy((char*)data, (char*) pageBuffer+attrPtr, 4);
+                    }
+                }
+            }
+            attrOffPtr += sizeof(int);
+        }
+        free(pageBuffer);
+        return 0;
     }
 
     RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -465,8 +521,8 @@ namespace PeterDB {
                 // Attribute is null
                 else {
                     // write offset info to offsetDir
-                    int attrOffset = -1;
-                    memcpy(offsetDirPtr, &attrOffset, sizeof(int));
+                    int nullAttrOffset = -1;
+                    memcpy(offsetDirPtr, &nullAttrOffset, sizeof(int));
                     offsetDirPtr += 1;
                 }
                 attrCounter++;
