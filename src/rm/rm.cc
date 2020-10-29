@@ -6,7 +6,50 @@ namespace PeterDB {
         return _relation_manager;
     }
 
-    RelationManager::RelationManager() = default;
+    RelationManager::RelationManager() {
+        Attribute attr;
+        // Prepare tables recordDescriptor
+        attr.name = "table-id";
+        attr.type = TypeInt;
+        attr.length = (AttrLength) 4;
+        tablesRecordDescriptor.push_back(attr);
+
+        attr.name = "table-name";
+        attr.type = TypeVarChar;
+        attr.length = (AttrLength) 50;
+        tablesRecordDescriptor.push_back(attr);
+
+        attr.name = "file-name";
+        attr.type = TypeVarChar;
+        attr.length = (AttrLength) 50;
+        tablesRecordDescriptor.push_back(attr);
+
+        // Prepare columns recordDescriptor
+        attr.name = "table-id";
+        attr.type = TypeInt;
+        attr.length = (AttrLength) 4;
+        columnsRecordDescriptor.push_back(attr);
+
+        attr.name = "column-name";
+        attr.type = TypeVarChar;
+        attr.length = (AttrLength) 50;
+        columnsRecordDescriptor.push_back(attr);
+
+        attr.name = "column-type";
+        attr.type = TypeInt;
+        attr.length = (AttrLength) 4;
+        columnsRecordDescriptor.push_back(attr);
+
+        attr.name = "column-length";
+        attr.type = TypeInt;
+        attr.length = (AttrLength) 4;
+        columnsRecordDescriptor.push_back(attr);
+
+        attr.name = "column-position";
+        attr.type = TypeInt;
+        attr.length = (AttrLength) 4;
+        columnsRecordDescriptor.push_back(attr);
+    }
 
     RelationManager::~RelationManager() = default;
 
@@ -15,15 +58,35 @@ namespace PeterDB {
     RelationManager &RelationManager::operator=(const RelationManager &) = default;
 
     RC RelationManager::createCatalog() {
-        return -1;
+        RC errCode = rbfm->createFile("Tables.clg");
+        if (errCode != 0) {
+            return errCode;
+        }
+        errCode = rbfm->createFile("Columns.clg");
+        if (errCode != 0) {
+            return errCode;
+        }
+
+        return 0;
     }
 
     RC RelationManager::deleteCatalog() {
-        return -1;
+        RC errCode = rbfm->destroyFile("Tables.clg");
+        if (errCode != 0) {
+            return errCode;
+        }
+        errCode = rbfm->destroyFile("Columns.clg");
+        if (errCode != 0) {
+            return errCode;
+        }
+        return 0;
     }
 
     RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs) {
-        return -1;
+        RC errCode = rbfm->createFile(tableName + ".tbl");
+        if (errCode != 0) {
+            return errCode;
+        }
     }
 
     RC RelationManager::deleteTable(const std::string &tableName) {
