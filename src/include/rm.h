@@ -65,6 +65,13 @@ namespace PeterDB {
 
         RC dropAttribute(const std::string &tableName, const std::string &attributeName);
 
+    private:
+        RecordBasedFileManager* rbfm;
+
+        std::vector<Attribute> tablesRecordDescriptor;
+
+        std::vector<Attribute> columnsRecordDescriptor;
+
     protected:
         RelationManager();                                                  // Prevent construction
         ~RelationManager();                                                 // Prevent unwanted destruction

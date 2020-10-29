@@ -153,6 +153,8 @@ namespace PeterDB {
                 RBFM_ScanIterator &rbfm_ScanIterator);
 
     private:
+        PagedFileManager* pfm;
+
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
