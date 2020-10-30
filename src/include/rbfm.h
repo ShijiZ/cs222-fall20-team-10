@@ -66,23 +66,30 @@ namespace PeterDB {
         // Never keep the results in the memory. When getNextRecord() is called,
         // a satisfying record needs to be fetched from the file.
         // "data" follows the same format as RecordBasedFileManager::insertRecord().
-        RC getNextRecord(RID &rid, void *data) { return RBFM_EOF; };
 
-        void init(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                  const CompOp compOp, const void *value,
-                  const std::vector<std::string> &attributeNames);
+        RC getNextRecord(RID &rid, void *data);
 
-        RC close() { return -1; };
+       void init(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                 const CompOp compOp, const void *value,
+                 const std::vector<std::string> &attributeNames);
 
-        FileHandle fileHandle;
-        std::vector<Attribute> recordDescriptor;
-        CompOp compOp;
-        const void *value;
-        std::vector<std::string> attributeNames;
-        std::vector<short> attrIdx;
+       RC close();
+
+        std::vector<short> targetAttrIdx;
         short conditionAttrIdx;
-        int pageNum;
-        short slotNum;
+        int conditionType;
+
+    private:
+       bool findAttr(const void *checkAttr, short attrLen);
+       FileHandle fileHandle;
+       std::vector<Attribute> recordDescriptor;
+       CompOp compOp;
+       const void *value;
+       std::vector<std::string> attributeNames;
+       int pageNum;
+       short slotNum;
+       //RecordBasedFileManager *rbfm;
+       short parseAttr(short &attrOffset,void *pageBuffer, short recordOffset,short idx);
     };
 
     class RecordBasedFileManager {
@@ -152,7 +159,7 @@ namespace PeterDB {
                 const std::vector<std::string> &attributeNames, // a list of projected attributes
                 RBFM_ScanIterator &rbfm_ScanIterator);
 
-    private:
+    //private:
         PagedFileManager* pfm;
 
         /**********************************/
@@ -178,6 +185,8 @@ namespace PeterDB {
 
         RC findRecord(FileHandle &fileHandle, void *pageBuffer, short &recordOffset, short &recordLength, RID &rid);
 
+        short parseAttr();
+
         /*********************************************/
         /*****    Getter and Setter functions  *******/
         /*********************************************/
@@ -196,6 +205,8 @@ namespace PeterDB {
         void setRecordLength(void* pageBuffer, unsigned short slotNum, short recordLength);
 
         void setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset);
+
+
 
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
