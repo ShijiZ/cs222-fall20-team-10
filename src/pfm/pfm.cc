@@ -89,11 +89,12 @@ namespace PeterDB {
         }
         fileToBeHandled->open(fileName, std::ios::in | std::ios::out | std::ios::binary);
         if (fileToBeHandled->is_open()) {
+            std::cout<<"tables opened"<<std::endl;
             readHiddenPage();
             return 0;
         }
         else {
-            return -1;
+            return -2; //file not exists
         }
     }
 

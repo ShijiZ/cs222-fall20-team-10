@@ -3,6 +3,9 @@
 
 #include <string>
 #include <vector>
+/// debug
+#include <sstream>
+///
 
 #include "src/include/rbfm.h"
 
@@ -20,6 +23,10 @@ namespace PeterDB {
         RC getNextTuple(RID &rid, void *data);
 
         RC close();
+
+        //FileHandle fileHandle;
+
+        RBFM_ScanIterator rbfm_scanIterator;
     };
 
     // Relation Manager
@@ -72,9 +79,7 @@ namespace PeterDB {
 
         std::vector<Attribute> columnsRecordDescriptor;
 
-        unsigned numTables;
-
-        FileHandle fileHandle;
+        unsigned maxTableId;
 
         /**********************************/
         /*****    Helper functions  *******/
@@ -93,7 +98,7 @@ namespace PeterDB {
 
         RC insertColumnsRecord(int table_id, std::vector<Attribute> recordDescriptor);
 
-        unsigned getNumTables();
+        unsigned getMaxTableId();
 
         RC getTableId(const std::string &tableName, RID &rid, void *data);
 
