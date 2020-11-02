@@ -69,27 +69,30 @@ namespace PeterDB {
 
         RC getNextRecord(RID &rid, void *data);
 
-       void init(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+        void init(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                  const CompOp compOp, const void *value,
                  const std::vector<std::string> &attributeNames);
 
-       RC close();
+        RC close();
 
         std::vector<short> targetAttrIdx;
         short conditionAttrIdx;
-        int conditionType;
+        AttrType conditionType;
 
+        FileHandle fileHandle;
     private:
-       bool findAttr(const void *checkAttr, short attrLen);
-       FileHandle fileHandle;
-       std::vector<Attribute> recordDescriptor;
-       CompOp compOp;
-       const void *value;
-       std::vector<std::string> attributeNames;
-       int pageNum;
-       short slotNum;
-       //RecordBasedFileManager *rbfm;
-       short parseAttr(short &attrOffset,void *pageBuffer, short recordOffset,short idx);
+        //FileHandle* fileHandle;
+
+        std::vector<Attribute> recordDescriptor;
+        CompOp compOp;
+        const void* value;
+        std::vector<std::string> attributeNames;
+        int currPageNum;
+        short currSlotNum;
+        //RecordBasedFileManager *rbfm;
+
+        bool findAttr(const void *checkAttr, short attrLen);
+        RC parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs);
     };
 
     class RecordBasedFileManager {
@@ -185,7 +188,6 @@ namespace PeterDB {
 
         RC findRecord(FileHandle &fileHandle, void *pageBuffer, short &recordOffset, short &recordLength, RID &rid);
 
-        short parseAttr();
 
         /*********************************************/
         /*****    Getter and Setter functions  *******/

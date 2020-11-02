@@ -50,7 +50,10 @@ namespace PeterDB {
         attr.length = (AttrLength) 4;
         columnsRecordDescriptor.push_back(attr);
 
-        numTables = getNumTables();
+        maxTableId = getMaxTableId();
+
+        RecordBasedFileManager& rbfm = RecordBasedFileManager::instance();
+        this->rbfm = &rbfm;
     }
 
     RelationManager::~RelationManager() = default;
@@ -60,24 +63,28 @@ namespace PeterDB {
     RelationManager &RelationManager::operator=(const RelationManager &) = default;
 
     RC RelationManager::createCatalog() {
-        numTables++;
-        RC errCode = rbfm->createFile("Tables.clg");
+        maxTableId++;
+        RC errCode = rbfm->createFile("Tables");
+        std::cout << "after create Tables table, maxTableId is " << maxTableId << std::endl;
         if (errCode != 0) return errCode;
 
-        numTables++;
-        errCode = rbfm->createFile("Columns.clg");
+        maxTableId++;
+        errCode = rbfm->createFile("Columns");
+        std::cout << "after create Columns table, maxTableId is " << maxTableId << std::endl;
         if (errCode != 0) return errCode;
-
-        errCode = insertTablesRecord(1, "Tables", "Tables.clg");
+        //std::cout<<" inside createCatalog before insertTablesRecord 1"<<std::endl;
+        errCode = insertTablesRecord(1, "Tables", "Tables");
         if (errCode != 0) return errCode;
-
-        errCode = insertTablesRecord(2,"Columns", "Columns.clg");
+        //std::cout<<" inside createCatalog after insertTablesRecord 1"<<std::endl;
+        errCode = insertTablesRecord(2,"Columns", "Columns");
         if (errCode != 0) return errCode;
-
+        //std::cout<<" inside createCatalog before insertColumnssRecord 1"<<std::endl;
         errCode = insertColumnsRecord(1, tablesRecordDescriptor);
+        //std::cout<<" inside createCatalog after insertColumnssRecord 1"<<std::endl;
         if (errCode != 0) return errCode;
-
+        //std::cout<<" inside createCatalog before insertColumnssRecord 2"<<std::endl;
         errCode = insertColumnsRecord(2, columnsRecordDescriptor);
+        //std::cout<<" inside createCatalog after insertColumnssRecord 2"<<std::endl;
         if (errCode != 0) return errCode;
 
         /*
@@ -118,24 +125,36 @@ namespace PeterDB {
     }
 
     RC RelationManager::deleteCatalog() {
-        RC errCode = rbfm->destroyFile("Tables.clg");
+        RC errCode = rbfm->destroyFile("Tables");
         if (errCode != 0) return errCode;
 
-        errCode = rbfm->destroyFile("Columns.clg");
+        errCode = rbfm->destroyFile("Columns");
         if (errCode != 0) return errCode;
+
+        maxTableId = 0;
 
         return 0;
     }
 
     RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs) {
-        numTables++;
-        RC errCode = insertTablesRecord(numTables, tableName, tableName + ".tbl");
+        // Try open Tables at input mode. If unsuccessful, doesn't exist
+        std::fstream tablesCatalogFile;
+        tablesCatalogFile.open("Tables", std::ios::in | std::ios::binary);
+        if (tablesCatalogFile.is_open()) {
+            tablesCatalogFile.close();
+        }
+        else {
+            return -1;
+        }
+
+        maxTableId++;
+        RC errCode = insertTablesRecord(maxTableId, tableName, tableName);
         if (errCode != 0) return errCode;
 
-        errCode = insertColumnsRecord(numTables, attrs);
+        errCode = insertColumnsRecord(maxTableId, attrs);
         if (errCode != 0) return errCode;
 
-        errCode = rbfm->createFile(tableName + ".tbl");
+        errCode = rbfm->createFile(tableName);
         if (errCode != 0) return errCode;
 
         return 0;
@@ -144,20 +163,24 @@ namespace PeterDB {
     RC RelationManager::deleteTable(const std::string &tableName) {
         char* data = (char*) malloc(5);
         RID TablesRid;
+        std::cout<<"inside deleteTable, before getTableId"<<std::endl;
         RC errCode = getTableId(tableName, TablesRid, data);
         if (errCode != 0) return errCode;
-
+        std::cout<<"inside deleteTable, after getTableId"<<std::endl;
         int tableId;
         memcpy(&tableId, (char*) data+1, sizeof(int));
 
         // Delete record from Tables table
-        errCode = rbfm->openFile("Tables.clg", fileHandle);
+        FileHandle tablesFileHandle;
+        errCode = rbfm->openFile("Tables", tablesFileHandle);
+        if (errCode != 0) return errCode;
+        std::cout<<"inside deleteTable, after openFile Tables"<<std::endl;
+        errCode = rbfm->deleteRecord(tablesFileHandle, tablesRecordDescriptor, TablesRid);
+        std::cout<<"inside deleteTable, after deleteRecord"<<std::endl;
         if (errCode != 0) return errCode;
 
-        errCode = rbfm->deleteRecord(fileHandle, tablesRecordDescriptor, TablesRid);
-        if (errCode != 0) return errCode;
-
-        errCode = rbfm->closeFile(fileHandle);
+        errCode = rbfm->closeFile(tablesFileHandle);
+        std::cout<<"inside deleteTable, after closeFile1"<<std::endl;
         if (errCode != 0) return errCode;
 
         // Delete records form Columns table
@@ -171,42 +194,53 @@ namespace PeterDB {
         int* value = &tableId;
 
         RM_ScanIterator rmScanIterator;
-        scan("Columns.clg", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
-
-        errCode = rbfm->openFile("Columns.clg", fileHandle);
+        errCode = scan("Columns", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
         if (errCode != 0) return errCode;
 
+        FileHandle columnsFileHandle;
+        errCode = rbfm->openFile("Columns", columnsFileHandle);
+        if (errCode != 0) return errCode;
+        std::cout<<"inside deleteTable, after openFile Columns"<<std::endl;
         RID ColumnsRid;
         while (rmScanIterator.getNextTuple(ColumnsRid, data) != RBFM_EOF) {
-            errCode = rbfm->deleteRecord(fileHandle, tablesRecordDescriptor, ColumnsRid);
+            errCode = rbfm->deleteRecord(columnsFileHandle, tablesRecordDescriptor, ColumnsRid);
             if (errCode != 0) return errCode;
         }
+        std::cout<<"inside deleteTable, after while"<<std::endl;
         rmScanIterator.close();
         free(data);
 
-        errCode = rbfm->closeFile(fileHandle);
-        if (errCode != 0) return errCode;
-
-        errCode = rbfm->destroyFile(tableName + ".tbl");
+        errCode = rbfm->destroyFile(tableName);
         if (errCode != 0) return errCode;
 
         return 0;
     }
 
     RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attribute> &attrs) {
-        char* data = (char*) malloc(5);
-        RID dumRid;
-        RC errCode = getTableId(tableName, dumRid, data);
-        if (errCode != 0) return errCode;
+        if (tableName == "Tables") {
+            attrs = tablesRecordDescriptor;
+        }
+        else if (tableName == "Columns") {
+            attrs = columnsRecordDescriptor;
+        }
+        else {
+            void* data = malloc(5);
+            RID dumRid;
+            RC errCode = getTableId(tableName, dumRid, data);
+            if (errCode != 0) return errCode;
 
-        int tableId;
-        memcpy(&tableId, (char*) data+1, sizeof(int));
-
-        return buildRecordDescriptor(tableId, attrs);
+            int tableId;
+            memcpy(&tableId, (char*) data+1, sizeof(int));
+            free(data);
+            std::cout << "Inside getAttributes, tableId is " << tableId << std::endl;
+            return buildRecordDescriptor(tableId, attrs);
+        }
+        return 0;
     }
 
     RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
-        RC errCode = rbfm->openFile(tableName + ".tbl", fileHandle);
+        FileHandle fileHandle;
+        RC errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         std::vector<Attribute> recordDescriptor;
@@ -223,7 +257,8 @@ namespace PeterDB {
     }
 
     RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
-        RC errCode = rbfm->openFile(tableName + ".tbl", fileHandle);
+        FileHandle fileHandle;
+        RC errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         std::vector<Attribute> recordDescriptor;
@@ -240,7 +275,8 @@ namespace PeterDB {
     }
 
     RC RelationManager::updateTuple(const std::string &tableName, const void *data, const RID &rid) {
-        RC errCode = rbfm->openFile(tableName + ".tbl", fileHandle);
+        FileHandle fileHandle;
+        RC errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         std::vector<Attribute> recordDescriptor;
@@ -257,7 +293,8 @@ namespace PeterDB {
     }
 
     RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void *data) {
-        RC errCode = rbfm->openFile(tableName + ".tbl", fileHandle);
+        FileHandle fileHandle;
+        RC errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         std::vector<Attribute> recordDescriptor;
@@ -279,7 +316,8 @@ namespace PeterDB {
 
     RC RelationManager::readAttribute(const std::string &tableName, const RID &rid, const std::string &attributeName,
                                       void *data) {
-        RC errCode = rbfm->openFile(tableName + ".tbl", fileHandle);
+        FileHandle fileHandle;
+        RC errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         std::vector<Attribute> recordDescriptor;
@@ -301,7 +339,20 @@ namespace PeterDB {
                              const void *value,
                              const std::vector<std::string> &attributeNames,
                              RM_ScanIterator &rm_ScanIterator) {
-        return -1;
+        std::cout<<"inside rm_scan before openFile"<<std::endl;
+        RC errCode = rbfm->openFile(tableName, rm_ScanIterator.rbfm_scanIterator.fileHandle);
+        if (errCode != 0) return errCode;
+
+        //FileHandle fileHandle;
+        std::cout<<"inside rm_scan before getAttributes"<<std::endl;
+        std::vector<Attribute> recordDescriptor;
+        errCode = getAttributes(tableName,recordDescriptor);
+        if (errCode != 0) return errCode;
+
+        errCode = rbfm->scan(rm_ScanIterator.rbfm_scanIterator.fileHandle, recordDescriptor, conditionAttribute, compOp, value, attributeNames, rm_ScanIterator.rbfm_scanIterator);
+        if (errCode != 0) return errCode;
+
+        return 0;
     }
 
     /**********************************/
@@ -341,7 +392,8 @@ namespace PeterDB {
      */
 
     RC RelationManager::insertTablesRecord(int table_id, const std::string &table_name, const std::string &file_name) {
-        RC errCode = rbfm->openFile("Tables.clg", fileHandle);
+        FileHandle fileHandle;
+        RC errCode = rbfm->openFile("Tables", fileHandle);
         if (errCode != 0) return errCode;
 
         // Generate record for Tables table
@@ -366,6 +418,13 @@ namespace PeterDB {
         recordBufferPtr += sizeof(unsigned);
         memcpy((char*) recordBuffer+recordBufferPtr, file_name.c_str(), varCharLen);
 
+        /////// debug
+        std::ostringstream stream;
+        rbfm->printRecord(tablesRecordDescriptor,recordBuffer,stream);
+        std::cout<<stream.str()<<std::endl;
+
+        ////////
+
         // Insert record to Tables table
         RID dumRid;
         errCode = rbfm->insertRecord(fileHandle, tablesRecordDescriptor, recordBuffer, dumRid);
@@ -380,7 +439,8 @@ namespace PeterDB {
     }
 
     RC RelationManager::insertColumnsRecord(int table_id, std::vector<Attribute> recordDescriptor) {
-        RC errCode = rbfm->openFile("Columns.clg", fileHandle);
+        FileHandle fileHandle;
+        RC errCode = rbfm->openFile("Columns", fileHandle);
         if (errCode != 0) return errCode;
 
         char *recordBuffer = (char*) malloc(71);
@@ -398,15 +458,15 @@ namespace PeterDB {
 
             unsigned varCharLen = attr.name.size();
             memcpy((char*) recordBuffer+recordBufferPtr, &varCharLen, sizeof(unsigned));
-            recordBuffer += sizeof(unsigned);
+            recordBufferPtr += sizeof(unsigned);
             memcpy((char*) recordBuffer+recordBufferPtr, attr.name.c_str(), varCharLen);
-            recordBuffer += varCharLen;
+            recordBufferPtr += varCharLen;
 
             memcpy((char*) recordBuffer+recordBufferPtr, &attr.type, sizeof(AttrType));
-            recordBuffer += sizeof(AttrType);
+            recordBufferPtr += sizeof(AttrType);
 
             memcpy((char*) recordBuffer+recordBufferPtr, &attr.length, sizeof(AttrLength));
-            recordBuffer += sizeof(AttrLength);
+            recordBufferPtr += sizeof(AttrLength);
 
             memcpy((char*) recordBuffer+recordBufferPtr, &column_position, sizeof(int));
             column_position++;
@@ -425,10 +485,10 @@ namespace PeterDB {
         return 0;
     }
 
-    unsigned RelationManager::getNumTables() {
-        // Try open Tables.clg at input mode. If unsuccessful, doesn't exist
+    unsigned RelationManager::getMaxTableId() {
+        // Try open Tables at input mode. If unsuccessful, doesn't exist
         std::fstream tablesCatalogFile;
-        tablesCatalogFile.open("Tables.clg", std::ios::in | std::ios::binary);
+        tablesCatalogFile.open("Tables", std::ios::in | std::ios::binary);
         if (tablesCatalogFile.is_open()) {
             tablesCatalogFile.close();
         }
@@ -440,16 +500,22 @@ namespace PeterDB {
         attributeNames.push_back("table-id");
 
         RM_ScanIterator rmScanIterator;
-        scan("Tables.clg", "", NO_OP, nullptr, attributeNames, rmScanIterator);
+        RC errCode = scan("Tables", "", NO_OP, nullptr, attributeNames, rmScanIterator);
+        if (errCode != 0) return -1;
+
         RID dumRid;
-        void* dumData = malloc(5);
-        int tableNum = 0;
-        while (rmScanIterator.getNextTuple(dumRid, dumData) != RBFM_EOF) {
-            tableNum++;
+        void* data = malloc(5);
+        int maxTableId = 0;
+        int currTableId = 0;
+        while (rmScanIterator.getNextTuple(dumRid, data) != RBFM_EOF) {
+            memcpy(&currTableId, (char*) data+1, sizeof(int));
+            if (currTableId > maxTableId) {
+                maxTableId = currTableId;
+            }
         }
-        free(dumData);
+        free(data);
         rmScanIterator.close();
-        return tableNum;
+        return maxTableId;
     }
 
     RC RelationManager::getTableId(const std::string &tableName, RID &rid, void *data) {
@@ -462,23 +528,26 @@ namespace PeterDB {
         void* value = malloc(sizeof(unsigned) + varCharLen);
         memcpy(value, &varCharLen, sizeof(unsigned));
         memcpy((char*) value+sizeof(unsigned), tableName.c_str(), varCharLen);
-
+        std::cout<<"inside getTableId varCharLen is "<<varCharLen<<std::endl;
         CompOp compOp = EQ_OP;
 
+        std::cout << "Inside getTableId, before scan " << std::endl;
         RM_ScanIterator rmScanIterator;
+        RC errCode = scan("Tables", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
+        if (errCode != 0) return errCode;
 
-        scan("Tables.clg", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
-        free(value);
-
+        std::cout << "Inside getTableId, before getNextTuple " << std::endl;
         if (rmScanIterator.getNextTuple(rid, data) != RBFM_EOF) {
             rmScanIterator.close();
-            free(data);
+            free(value);
+            //free(data);      ///////////////
             return 0;
         }
         // Didn't find table
         else {
             rmScanIterator.close();
-            free(data);
+            free(value);
+            //free(data);      //////////////
             return -1;
         }
     }
@@ -494,11 +563,12 @@ namespace PeterDB {
         CompOp compOp = EQ_OP;
 
         int* value = &tableId;
+        std::cout << "Inside buildRecordDescriptor, tableId is " << tableId << std::endl;
 
         RM_ScanIterator rmScanIterator;
-
-        scan("Columns.clg", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
-        free(value);
+        RC errCode = scan("Columns", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
+        if (errCode != 0) return errCode;
+        //free(value);
 
         RID dumRid;
         void* data = malloc(62);
@@ -535,9 +605,13 @@ namespace PeterDB {
 
     RM_ScanIterator::~RM_ScanIterator() = default;
 
-    RC RM_ScanIterator::getNextTuple(RID &rid, void *data) { return RM_EOF; }
+    RC RM_ScanIterator::getNextTuple(RID &rid, void *data) {
+        return rbfm_scanIterator.getNextRecord(rid, data);
+    }
 
-    RC RM_ScanIterator::close() { return -1; }
+    RC RM_ScanIterator::close() {
+        return rbfm_scanIterator.close();
+    }
 
     // Extra credit work
     RC RelationManager::dropAttribute(const std::string &tableName, const std::string &attributeName) {
