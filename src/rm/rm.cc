@@ -232,7 +232,7 @@ namespace PeterDB {
             int tableId;
             memcpy(&tableId, (char*) data+1, sizeof(int));
             free(data);
-            std::cout << "Inside getAttributes, tableId is " << tableId << std::endl;
+            //std::cout << "Inside getAttributes, tableId is " << tableId << std::endl;
             return buildRecordDescriptor(tableId, attrs);
         }
         return 0;
@@ -339,12 +339,10 @@ namespace PeterDB {
                              const void *value,
                              const std::vector<std::string> &attributeNames,
                              RM_ScanIterator &rm_ScanIterator) {
-        std::cout<<"inside rm_scan before openFile"<<std::endl;
         RC errCode = rbfm->openFile(tableName, rm_ScanIterator.rbfm_scanIterator.fileHandle);
         if (errCode != 0) return errCode;
 
         //FileHandle fileHandle;
-        std::cout<<"inside rm_scan before getAttributes"<<std::endl;
         std::vector<Attribute> recordDescriptor;
         errCode = getAttributes(tableName,recordDescriptor);
         if (errCode != 0) return errCode;
@@ -420,7 +418,7 @@ namespace PeterDB {
 
         /////// debug
         std::ostringstream stream;
-        rbfm->printRecord(tablesRecordDescriptor,recordBuffer,stream);
+        rbfm->printRecord(tablesRecordDescriptor, recordBuffer,stream);
         std::cout<<stream.str()<<std::endl;
 
         ////////
@@ -528,26 +526,21 @@ namespace PeterDB {
         void* value = malloc(sizeof(unsigned) + varCharLen);
         memcpy(value, &varCharLen, sizeof(unsigned));
         memcpy((char*) value+sizeof(unsigned), tableName.c_str(), varCharLen);
-        std::cout<<"inside getTableId varCharLen is "<<varCharLen<<std::endl;
         CompOp compOp = EQ_OP;
 
-        std::cout << "Inside getTableId, before scan " << std::endl;
         RM_ScanIterator rmScanIterator;
         RC errCode = scan("Tables", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
         if (errCode != 0) return errCode;
 
-        std::cout << "Inside getTableId, before getNextTuple " << std::endl;
         if (rmScanIterator.getNextTuple(rid, data) != RBFM_EOF) {
             rmScanIterator.close();
             free(value);
-            //free(data);      ///////////////
             return 0;
         }
         // Didn't find table
         else {
             rmScanIterator.close();
             free(value);
-            //free(data);      //////////////
             return -1;
         }
     }
@@ -563,7 +556,7 @@ namespace PeterDB {
         CompOp compOp = EQ_OP;
 
         int* value = &tableId;
-        std::cout << "Inside buildRecordDescriptor, tableId is " << tableId << std::endl;
+        //std::cout << "Inside buildRecordDescriptor, tableId is " << tableId << std::endl;
 
         RM_ScanIterator rmScanIterator;
         RC errCode = scan("Columns", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
@@ -596,6 +589,9 @@ namespace PeterDB {
 
             attrs.push_back(attr);
         }
+        ///// debug
+        std::cout << "Inside buildRecordDescriptor, recordDescriptor size is " << attrs.size() << std::endl;
+        ////////
         rmScanIterator.close();
         free(data);
         return 0;

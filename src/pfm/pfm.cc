@@ -89,7 +89,6 @@ namespace PeterDB {
         }
         fileToBeHandled->open(fileName, std::ios::in | std::ios::out | std::ios::binary);
         if (fileToBeHandled->is_open()) {
-            std::cout<<"tables opened"<<std::endl;
             readHiddenPage();
             return 0;
         }
@@ -99,14 +98,16 @@ namespace PeterDB {
     }
 
     RC FileHandle::closeFile() {
-        if (fileToBeHandled->is_open()) {
-            writeHiddenPage();
-            fileToBeHandled->close();
-            return 0;
-        }
-        else {
-            return -1;
-        }
+        // If file is already closed, do nothing
+
+        //if (fileToBeHandled->is_open()) {
+        writeHiddenPage();
+        fileToBeHandled->close();
+        return 0;
+        //}
+        //else {
+        //    return -1;
+        //}
     }
 
     RC FileHandle::readPage(PageNum pageNum, void *data) {
