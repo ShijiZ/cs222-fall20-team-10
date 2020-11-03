@@ -91,7 +91,7 @@ namespace PeterDB {
         short currSlotNum;
         //RecordBasedFileManager *rbfm;
 
-        bool findAttr(const void *checkAttr, short attrLen);
+        bool findCondAttr(const void *checkAttr, short attrLen);
         RC parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs);
     };
 
