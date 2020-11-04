@@ -139,7 +139,7 @@ namespace PeterDB {
         if (errCode != 0) return errCode;
 
         int tableId;
-        memcpy(&tableId, (char*) data+1, sizeof(int));
+        memcpy(&tableId, (char*) data+1, INT_SIZE);
 
         // Delete record from Tables table
         FileHandle tablesFileHandle;
@@ -158,7 +158,7 @@ namespace PeterDB {
         CompOp compOp = EQ_OP;
 
         std::vector<std::string> attributeNames;
-        attributeNames.push_back("table-id");
+        attributeNames.emplace_back("table-id");
 
         int* value = &tableId;
 
@@ -198,7 +198,7 @@ namespace PeterDB {
             if (errCode != 0) return errCode;
 
             int tableId;
-            memcpy(&tableId, (char*) data+1, sizeof(int));
+            memcpy(&tableId, (char*) data+1, INT_SIZE);
             free(data);
             //std::cout << "Inside getAttributes, tableId is " << tableId << std::endl;
             return buildRecordDescriptor(tableId, attrs);
@@ -343,24 +343,24 @@ namespace PeterDB {
 
         // Generate record for Tables table
         char *recordBuffer = (char*) malloc(113);
-        int recordBufferPtr = 0;
+        unsigned recordBufferPtr = 0;
 
         char nullIndicator = 0;  // 00000000
         memcpy((char*) recordBuffer+recordBufferPtr, &nullIndicator, 1);
         recordBufferPtr += 1;
 
-        memcpy((char*) recordBuffer+recordBufferPtr, &table_id, sizeof(int));
-        recordBufferPtr += sizeof(int);
+        memcpy((char*) recordBuffer+recordBufferPtr, &table_id, INT_SIZE);
+        recordBufferPtr += INT_SIZE;
 
         unsigned varCharLen = table_name.size();
-        memcpy((char*) recordBuffer+recordBufferPtr, &varCharLen, sizeof(unsigned));
-        recordBufferPtr += sizeof(unsigned);
+        memcpy((char*) recordBuffer+recordBufferPtr, &varCharLen, VC_LEN_SIZE);
+        recordBufferPtr += VC_LEN_SIZE;
         memcpy((char*) recordBuffer+recordBufferPtr, table_name.c_str(), varCharLen);
         recordBufferPtr += varCharLen;
 
         varCharLen = file_name.size();
-        memcpy((char*) recordBuffer+recordBufferPtr, &varCharLen, sizeof(unsigned));
-        recordBufferPtr += sizeof(unsigned);
+        memcpy((char*) recordBuffer+recordBufferPtr, &varCharLen, VC_LEN_SIZE);
+        recordBufferPtr += VC_LEN_SIZE;
         memcpy((char*) recordBuffer+recordBufferPtr, file_name.c_str(), varCharLen);
 
         // Insert record to Tables table
@@ -376,7 +376,7 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RelationManager::insertColumnsRecord(int table_id, std::vector<Attribute> recordDescriptor) {
+    RC RelationManager::insertColumnsRecord(int table_id, const std::vector<Attribute>& recordDescriptor) {
         FileHandle fileHandle;
         RC errCode = rbfm->openFile("Columns", fileHandle);
         if (errCode != 0) return errCode;
@@ -385,28 +385,28 @@ namespace PeterDB {
         int column_position = 1;
         for (Attribute attr : recordDescriptor) {
             // Generate record for Columns table
-            int recordBufferPtr = 0;
+            unsigned recordBufferPtr = 0;
 
             char nullIndicator = 0;  // 00000000
             memcpy((char*) recordBuffer+recordBufferPtr, &nullIndicator, 1);
             recordBufferPtr += 1;
 
-            memcpy((char*) recordBuffer+recordBufferPtr, &table_id, sizeof(int));
-            recordBufferPtr += sizeof(int);
+            memcpy((char*) recordBuffer+recordBufferPtr, &table_id, INT_SIZE);
+            recordBufferPtr += INT_SIZE;
 
             unsigned varCharLen = attr.name.size();
-            memcpy((char*) recordBuffer+recordBufferPtr, &varCharLen, sizeof(unsigned));
-            recordBufferPtr += sizeof(unsigned);
+            memcpy((char*) recordBuffer+recordBufferPtr, &varCharLen, VC_LEN_SIZE);
+            recordBufferPtr += VC_LEN_SIZE;
             memcpy((char*) recordBuffer+recordBufferPtr, attr.name.c_str(), varCharLen);
             recordBufferPtr += varCharLen;
 
-            memcpy((char*) recordBuffer+recordBufferPtr, &attr.type, sizeof(AttrType));
-            recordBufferPtr += sizeof(AttrType);
+            memcpy((char*) recordBuffer+recordBufferPtr, &attr.type, ATTR_TYPE_SIZE);
+            recordBufferPtr += ATTR_TYPE_SIZE;
 
-            memcpy((char*) recordBuffer+recordBufferPtr, &attr.length, sizeof(AttrLength));
-            recordBufferPtr += sizeof(AttrLength);
+            memcpy((char*) recordBuffer+recordBufferPtr, &attr.length, ATTR_LEN_SIZE);
+            recordBufferPtr += ATTR_LEN_SIZE;
 
-            memcpy((char*) recordBuffer+recordBufferPtr, &column_position, sizeof(int));
+            memcpy((char*) recordBuffer+recordBufferPtr, &column_position, INT_SIZE);
             column_position++;
 
             // Insert record to Columns table
@@ -423,7 +423,7 @@ namespace PeterDB {
         return 0;
     }
 
-    unsigned RelationManager::getMaxTableId() {
+    int RelationManager::getMaxTableId() {
         // Try open Tables at input mode. If unsuccessful, doesn't exist
         std::fstream tablesCatalogFile;
         tablesCatalogFile.open("Tables", std::ios::in | std::ios::binary);
@@ -435,10 +435,10 @@ namespace PeterDB {
         }
 
         std::vector<std::string> attributeNames;
-        attributeNames.push_back("table-id");
+        attributeNames.emplace_back("table-id");
 
         RM_ScanIterator rmScanIterator;
-        RC errCode = scan("Tables", "", NO_OP, NULL, attributeNames, rmScanIterator);
+        RC errCode = scan("Tables", "", NO_OP, nullptr, attributeNames, rmScanIterator);
         if (errCode != 0) return -1;
 
         RID dumRid;
@@ -446,7 +446,7 @@ namespace PeterDB {
         int maxTableId = 0;
         int currTableId = 0;
         while (rmScanIterator.getNextTuple(dumRid, data) != RM_EOF) {
-            memcpy(&currTableId, (char*) data+1, sizeof(int));
+            memcpy(&currTableId, (char*) data+1, INT_SIZE);
             if (currTableId > maxTableId) {
                 maxTableId = currTableId;
             }
@@ -458,14 +458,14 @@ namespace PeterDB {
 
     RC RelationManager::getTableId(const std::string &tableName, RID &rid, void *data) {
         std::vector<std::string> attributeNames;
-        attributeNames.push_back("table-id");
+        attributeNames.emplace_back("table-id");
 
         std::string conditionAttribute = "table-name";
 
         unsigned varCharLen = tableName.size();
-        void* value = malloc(sizeof(unsigned) + varCharLen);
-        memcpy(value, &varCharLen, sizeof(unsigned));
-        memcpy((char*) value+sizeof(unsigned), tableName.c_str(), varCharLen);
+        void* value = malloc(VC_LEN_SIZE + varCharLen);
+        memcpy(value, &varCharLen, VC_LEN_SIZE);
+        memcpy((char*) value+VC_LEN_SIZE, tableName.c_str(), varCharLen);
         CompOp compOp = EQ_OP;
 
         RM_ScanIterator rmScanIterator;
@@ -487,9 +487,9 @@ namespace PeterDB {
 
     RC RelationManager::buildRecordDescriptor(int tableId, std::vector<Attribute> &attrs) {
         std::vector<std::string> attributeNames;
-        attributeNames.push_back("column-name");
-        attributeNames.push_back("column-type");
-        attributeNames.push_back("column-length");
+        attributeNames.emplace_back("column-name");
+        attributeNames.emplace_back("column-type");
+        attributeNames.emplace_back("column-length");
 
         std::string conditionAttribute = "table-id";
 
@@ -506,12 +506,12 @@ namespace PeterDB {
         RID dumRid;
         void* data = malloc(62);
         while (rmScanIterator.getNextTuple(dumRid, data) != RM_EOF) {
-            int dataPtr = 1;
+            unsigned dataPtr = 1;
             Attribute attr;
 
             unsigned varCharLen;
-            memcpy(&varCharLen, (char*) data+dataPtr, sizeof(unsigned));
-            dataPtr += sizeof(unsigned);
+            memcpy(&varCharLen, (char*) data+dataPtr, VC_LEN_SIZE);
+            dataPtr += VC_LEN_SIZE;
             char* columnName = (char*) malloc(varCharLen);
             memcpy(columnName, (char*) data+dataPtr, varCharLen);
             dataPtr += varCharLen;
@@ -519,12 +519,12 @@ namespace PeterDB {
             free(columnName);
 
             AttrType columnType;
-            memcpy(&columnType, (char*) data+dataPtr, sizeof(AttrType));
-            dataPtr += sizeof(int);
+            memcpy(&columnType, (char*) data+dataPtr, ATTR_TYPE_SIZE);
+            dataPtr += ATTR_TYPE_SIZE;
             attr.type = columnType;
 
             AttrLength columnLength;
-            memcpy(&columnLength, (char*) data+dataPtr, sizeof(AttrLength));
+            memcpy(&columnLength, (char*) data+dataPtr, ATTR_LEN_SIZE);
             attr.length = columnLength;
 
             attrs.push_back(attr);

@@ -24,8 +24,6 @@ namespace PeterDB {
 
         RC close();
 
-        //FileHandle fileHandle;
-
         RBFM_ScanIterator rbfm_scanIterator;
     };
 
@@ -79,7 +77,7 @@ namespace PeterDB {
 
         std::vector<Attribute> columnsRecordDescriptor;
 
-        unsigned maxTableId;
+        int maxTableId;
 
         /**********************************/
         /*****    Helper functions  *******/
@@ -96,9 +94,9 @@ namespace PeterDB {
 
         RC insertTablesRecord(int table_id, const std::string &table_name, const std::string &file_name);
 
-        RC insertColumnsRecord(int table_id, std::vector<Attribute> recordDescriptor);
+        RC insertColumnsRecord(int table_id, const std::vector<Attribute>& recordDescriptor);
 
-        unsigned getMaxTableId();
+        int getMaxTableId();
 
         RC getTableId(const std::string &tableName, RID &rid, void *data);
 

@@ -54,7 +54,7 @@ namespace PeterDB {
             unsigned short freeBytes = getFreeBytes(pageBuffer);
             short bytesNeeded = recordLength;
             if (!hasEmptySlot(pageBuffer)) {
-                bytesNeeded = recordLength+2*sizeof(short);
+                bytesNeeded = recordLength + REC_OFF_SIZE + REC_LEN_SIZE;
             }
 
             //std::cout << "Inside insertRecord(): (1) freeBytes: " << freeBytes << std::endl;
@@ -70,7 +70,7 @@ namespace PeterDB {
                     //std::cout << "Inside insertRecord(): (2) bytesNeeded: " << bytesNeeded << std::endl;
                     bytesNeeded = recordLength;
                     if (!hasEmptySlot(pageBuffer)) {
-                        bytesNeeded = recordLength+2*sizeof(short);
+                        bytesNeeded = recordLength + REC_OFF_SIZE + REC_LEN_SIZE;
                     }
 
                     if (freeBytes >= bytesNeeded) {
@@ -116,14 +116,14 @@ namespace PeterDB {
         unsigned nullIndicatorSize = ceil((double) numAttrs/8);
 
         char* nullIndicator = new char[nullIndicatorSize];
-        int attrOffPtr = recordOffset + sizeof(unsigned);
+        int attrOffPtr = recordOffset + NUM_ATTR_SIZE;
         int attrCounter = 0;
         for (int byteIndex = 0; byteIndex < nullIndicatorSize; byteIndex++) {
             char init = 0;
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < numAttrs; bitIndex++) {
                 int attrOffset;
-                memcpy(&attrOffset, (char*) pageBuffer + attrOffPtr, sizeof(int));
-                attrOffPtr += sizeof(int);
+                memcpy(&attrOffset, (char*) pageBuffer + attrOffPtr, ATTR_OFF_SIZE);
+                attrOffPtr += ATTR_OFF_SIZE;
                 //std::cout << "attrOffset is " << attrOffset << std::endl;
                 if (attrOffset == -1) {
                     init += pow(2, 7-bitIndex);
@@ -138,10 +138,10 @@ namespace PeterDB {
         delete[] nullIndicator;
 
         // read record
-        unsigned attrDirSize = numAttrs*sizeof(int);
+        unsigned attrDirSize = numAttrs*ATTR_OFF_SIZE;
         memcpy((char*)data + nullIndicatorSize,
-               (char*)pageBuffer + recordOffset + sizeof(unsigned) + attrDirSize,
-               recordLength - attrDirSize - sizeof(unsigned));
+               (char*)pageBuffer + recordOffset + NUM_ATTR_SIZE + attrDirSize,
+               recordLength - NUM_ATTR_SIZE - attrDirSize);
         //std::cout << "Inside readRecord, null byte size within page = " << NullByteSize << std::endl;
         free(pageBuffer);
         return 0;
@@ -193,8 +193,8 @@ namespace PeterDB {
                 if (!NullBit){
                     if (attr.type == TypeVarChar) {
                         unsigned varCharLen = 0;
-                        memcpy(&varCharLen,(char*) data + attrPtr, sizeof(unsigned));
-                        attrPtr += sizeof(unsigned);
+                        memcpy(&varCharLen,(char*) data + attrPtr, VC_LEN_SIZE);
+                        attrPtr += VC_LEN_SIZE;
                         char* varCharBuffer = new char[varCharLen];
                         memcpy(varCharBuffer, (char*) data + attrPtr, varCharLen);
                         attrPtr += varCharLen;
@@ -203,14 +203,14 @@ namespace PeterDB {
                     }
                     else if (attr.type == TypeInt){
                         int intAttr = 0;
-                        memcpy(&intAttr,(char*) data + attrPtr, sizeof(int));
-                        attrPtr += sizeof(int);
+                        memcpy(&intAttr,(char*) data + attrPtr, INT_SIZE);
+                        attrPtr += INT_SIZE;
                         out << intAttr << ", ";
                     }
                     else{
                         float floatAttr = 0.0;
-                        memcpy(&floatAttr,(char*) data + attrPtr, sizeof(float));
-                        attrPtr += sizeof(float);
+                        memcpy(&floatAttr,(char*) data + attrPtr, FLT_SIZE);
+                        attrPtr += FLT_SIZE;
                         out << floatAttr << ", ";
                     }
                 }
@@ -262,7 +262,7 @@ namespace PeterDB {
                     unsigned short curFreeBytes = getFreeBytes(newPageBuffer);
                     short bytesNeeded = newRecordLength;
                     if (!hasEmptySlot(newPageBuffer)){
-                        bytesNeeded = newRecordLength + 2*sizeof(short);
+                        bytesNeeded = newRecordLength + REC_OFF_SIZE + REC_LEN_SIZE;
                     }
                     if (curFreeBytes >= bytesNeeded){
                         recordUpdated = insertRecordToPage(newRecordBuffer, newRecordOffset, newRecordLength, newPageBuffer);
@@ -282,10 +282,10 @@ namespace PeterDB {
             free(newPageBuffer);
 
             // set the original page (pageBuffer)
-            memcpy((char*) pageBuffer+recordOffset, &newPageNum, sizeof(unsigned));
-            memcpy((char*) pageBuffer+recordOffset+sizeof(unsigned), &newSlotNum, sizeof(short));
-            shiftRecord(pageBuffer, recordOffset, recordLength, sizeof(unsigned)+sizeof(short)-recordLength);
-            newFreeBytes = freeBytes-(sizeof(unsigned)+sizeof(short)-recordLength);
+            memcpy((char*) pageBuffer+recordOffset, &newPageNum, PTR_PN_SIZE);
+            memcpy((char*) pageBuffer+recordOffset+PTR_PN_SIZE, &newSlotNum, PTR_SN_SIZE);
+            shiftRecord(pageBuffer, recordOffset, recordLength, PTR_PN_SIZE+PTR_SN_SIZE-recordLength);
+            newFreeBytes = freeBytes-(PTR_PN_SIZE+PTR_SN_SIZE-recordLength);
             setFreeBytes(pageBuffer, newFreeBytes);
 
             // label record as moved
@@ -308,13 +308,13 @@ namespace PeterDB {
             return errCode;
         }
 
-        int attrOffPtr = recordOffset + sizeof(unsigned);
+        int attrOffPtr = recordOffset + NUM_ATTR_SIZE;
         const unsigned numAttrs = recordDescriptor.size();
         for (int attrIndex = 0; attrIndex < numAttrs; attrIndex++) {
             Attribute attr = recordDescriptor[attrIndex];
             if (attr.name == attributeName) {
                 int attrOffset;
-                memcpy(&attrOffset, (char*) pageBuffer+attrOffPtr, sizeof(int));
+                memcpy(&attrOffset, (char*) pageBuffer+attrOffPtr, ATTR_OFF_SIZE);
 
                 // attribute is null
                 if (attrOffset == -1) {
@@ -326,18 +326,21 @@ namespace PeterDB {
                     char nullIndicator = 0;  // 00000000
                     memcpy((char*)data, &nullIndicator, 1);
 
-                    int attrPtr = recordOffset + sizeof(unsigned) + numAttrs*sizeof(int) + attrOffset;
+                    int attrPtr = recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset;
                     if (attr.type == TypeVarChar) {
                         unsigned varCharLen = 0;
-                        memcpy(&varCharLen, (char*) pageBuffer+attrPtr, sizeof(unsigned));
-                        memcpy((char*)data+1, (char*) pageBuffer+attrPtr, sizeof(unsigned)+varCharLen);
+                        memcpy(&varCharLen, (char*) pageBuffer+attrPtr, VC_LEN_SIZE);
+                        memcpy((char*)data+1, (char*) pageBuffer+attrPtr, VC_LEN_SIZE+varCharLen);
+                    }
+                    else if (attr.type == TypeInt) {
+                        memcpy((char*)data+1, (char*) pageBuffer+attrPtr, INT_SIZE);
                     }
                     else {
-                        memcpy((char*)data+1, (char*) pageBuffer+attrPtr, 4);
+                        memcpy((char*)data+1, (char*) pageBuffer+attrPtr, FLT_SIZE);
                     }
                 }
             }
-            attrOffPtr += sizeof(int);
+            attrOffPtr += ATTR_OFF_SIZE;
         }
         free(pageBuffer);
         return 0;
@@ -347,56 +350,59 @@ namespace PeterDB {
                                     const std::string &conditionAttribute, const CompOp compOp, const void *value,
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
-       rbfm_ScanIterator.init(fileHandle, recordDescriptor, compOp, value, attributeNames);
-       int numAttrs = recordDescriptor.size();
-       short attrIdx;
-       for (short targetAttrIdx = 0; targetAttrIdx < attributeNames.size(); targetAttrIdx++){
-           for (attrIdx = 0; attrIdx < numAttrs; attrIdx++){
-               if (recordDescriptor[attrIdx].name == attributeNames[targetAttrIdx]){
-                   rbfm_ScanIterator.targetAttrIdx.push_back(attrIdx);
-                   break;
-               }
-           }
-           if (attrIdx == numAttrs){
-               return -1;   // attributeName not found
-           }
-       }
-       for (attrIdx = 0; attrIdx < numAttrs; attrIdx++){
-           if (recordDescriptor[attrIdx].name == conditionAttribute){
-               rbfm_ScanIterator.conditionAttrIdx = attrIdx;
-               rbfm_ScanIterator.conditionType = recordDescriptor[attrIdx].type;
-               break;
-           }
-       }
-       if (attrIdx == numAttrs){
-           if (compOp == NO_OP){
-               rbfm_ScanIterator.conditionAttrIdx = -1;
-           }
-           else{
-               return -1;
-           }
-       }
-
-       return 0;
+       return rbfm_ScanIterator.initialize(fileHandle, recordDescriptor, conditionAttribute,
+                                    compOp, value, attributeNames);
     }
 
     /*********************************************/
     /*****    functions of scan_Iterator  *******/
     /*********************************************/
-    void RBFM_ScanIterator::init(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                               const CompOp compOp, const void *value,
-                               const std::vector<std::string> &attributeNames) {
-        //this->fileHandle = &fileHandle;
+    RC RBFM_ScanIterator::initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                                       const std::string &conditionAttribute, const CompOp compOp, const void *value,
+                                       const std::vector<std::string> &attributeNames) {
         this->recordDescriptor = recordDescriptor;
         this->compOp = compOp;
         this->value = value;
         this->attributeNames = attributeNames;
         this->currPageNum = 0;
         this->currSlotNum = 0;
+
+        // initialize targetAttrIdxs
+        int numAttrs = recordDescriptor.size();
+        short attrIdx;
+        for (short targetAttrIdx = 0; targetAttrIdx < attributeNames.size(); targetAttrIdx++){
+            for (attrIdx = 0; attrIdx < numAttrs; attrIdx++){
+                if (recordDescriptor[attrIdx].name == attributeNames[targetAttrIdx]){
+                    this->targetAttrIdxs.push_back(attrIdx);
+                    break;
+                }
+            }
+            if (attrIdx == numAttrs){
+                return -1;   // attributeName not found
+            }
+        }
+
+        // initialize conditionAttrIdx and conditionType
+        for (attrIdx = 0; attrIdx < numAttrs; attrIdx++){
+            if (recordDescriptor[attrIdx].name == conditionAttribute){
+                this->conditionAttrIdx = attrIdx;
+                this->conditionType = recordDescriptor[attrIdx].type;
+                break;
+            }
+        }
+        if (attrIdx == numAttrs){
+            if (compOp == NO_OP){
+                this->conditionAttrIdx = -1;
+            }
+            else{
+                return -1;
+            }
+        }
+
+        return 0;
     }
 
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
-        RecordBasedFileManager &rbfm = RecordBasedFileManager::instance();
         void* pageBuffer = malloc(PAGE_SIZE);
         unsigned numPages = fileHandle.getNumberOfPages();
         int pageNum = 0;
@@ -411,15 +417,11 @@ namespace PeterDB {
             //std::cout<<"inside getNextRecord after enter outer for loop, currPageNum is "<<currPageNum<< ", pageNum is " << pageNum <<std::endl;
             RC errCode = fileHandle.readPage(pageNum, pageBuffer);
             if (errCode != 0) return errCode;
-            numSlots = rbfm.getNumSlots(pageBuffer);
+            numSlots = getNumSlots(pageBuffer);
 
             for (slotNum = currSlotNum; slotNum < numSlots; slotNum++) {
-                //std::cout<<"inside getNextRecord slotNum is "<<slotNum<<std::endl;
-                //std::cout<<"inside getNextRecord numSlots is "<<numSlots<<std::endl;
-                recordOffset = rbfm.getRecordOffset(pageBuffer, slotNum);
-                recordLength = rbfm.getRecordLength(pageBuffer, slotNum);
-                //std::cout<<"inside getNextRecord recordOffset is "<<recordOffset<<std::endl;
-                //std::cout<<"inside getNextRecord recordLength is "<<recordLength<<std::endl;
+                parseRecord(pageBuffer, slotNum, recordOffset, recordLength);
+
                 if (recordOffset == -1 || recordLength == -1){
                     continue;
                 }
@@ -437,7 +439,7 @@ namespace PeterDB {
                     //std::cout<<"inside getNextRecord attrlen is "<<attrLen<<std::endl;
                     if (attrLen > 0){
                         void* attrBuffer = malloc(attrLen);
-                        memcpy((char*) attrBuffer, (char*) pageBuffer + recordOffset + sizeof(unsigned) + numAttrs*sizeof(int) + attrOffset, attrLen);
+                        memcpy((char*) attrBuffer, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, attrLen);
                         //std::cout<<"inside getNextRecord before found"<<std::endl;
                         foundCondAttr = findCondAttr(attrBuffer, attrLen);
                         //std::cout<<"inside getNextRecord after found"<<std::endl;
@@ -482,12 +484,12 @@ namespace PeterDB {
                 //std::cout<<"inside getNextRecord inside if found, i is "<< i<<std::endl;
                 short attrLen = 0;
                 short attrOffset = 0;
-                RC errCode = parseAttr(attrLen, attrOffset, pageBuffer, recordOffset, targetAttrIdx[i], numAttrs);
+                RC errCode = parseAttr(attrLen, attrOffset, pageBuffer, recordOffset, targetAttrIdxs[i], numAttrs);
                 if (errCode != 0) return errCode;
                 //std::cout<<"inside getNextRecord inside if found, attrOffset is "<< attrOffset<<std::endl;
                 //std::cout<<"inside getNextRecord inside if found, attrLen is "<< attrLen<<std::endl;
                 if (attrLen > 0){
-                    memcpy((char*) data + dataPtr, (char*) pageBuffer + recordOffset + sizeof(unsigned) + numAttrs*sizeof(int) + attrOffset, attrLen);
+                    memcpy((char*) data + dataPtr, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, attrLen);
                     dataPtr += attrLen;
                 }
                 else{
@@ -507,15 +509,18 @@ namespace PeterDB {
     }
 
     RC RBFM_ScanIterator::parseAttr(short &attrLen, short &attrOffset, void *pageBuffer, short recordOffset, short idx, int numAttrs){
-        memcpy(&attrOffset, (char*) pageBuffer + recordOffset + sizeof(unsigned) + idx*sizeof(int), sizeof(int));
+        memcpy(&attrOffset, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + idx*ATTR_OFF_SIZE, ATTR_OFF_SIZE);
         if (attrOffset != -1){
             if (recordDescriptor[idx].type == TypeVarChar){
                 unsigned varCharLen = 0;
-                memcpy(&varCharLen, (char*) pageBuffer + recordOffset + sizeof(unsigned) + numAttrs*sizeof(int) + attrOffset, sizeof(unsigned));
-                attrLen = varCharLen + sizeof(unsigned);
+                memcpy(&varCharLen, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, VC_LEN_SIZE);
+                attrLen = varCharLen + VC_LEN_SIZE;
             }
-            else{
-                attrLen = sizeof(unsigned);
+            else if (recordDescriptor[idx].type == TypeInt){
+                attrLen = INT_SIZE;
+            }
+            else {
+                attrLen = FLT_SIZE;
             }
         }
         else {
@@ -524,24 +529,22 @@ namespace PeterDB {
         return 0;
     }
 
-    bool RBFM_ScanIterator::findCondAttr(const void *checkAttr,short attrLen){
+    bool RBFM_ScanIterator::findCondAttr(const void *checkAttr, short attrLen){
         bool found = false;
         //std::cout<<"inside findAttr before if conditionType is "<<conditionType<<std::endl;
         if (conditionType == TypeVarChar) {
-            unsigned checkVarCharLen = attrLen - sizeof(unsigned);
+            unsigned checkVarCharLen = attrLen - VC_LEN_SIZE;
             char* checkVarChar = (char*) malloc(checkVarCharLen);
-            memcpy(checkVarChar, (char*) checkAttr + sizeof(unsigned), checkVarCharLen);
+            memcpy(checkVarChar, (char*) checkAttr + VC_LEN_SIZE, checkVarCharLen);
 
             unsigned valueVarCharLen;
-            memcpy(&valueVarCharLen, (char*) value, sizeof(unsigned));
+            memcpy(&valueVarCharLen, (char*) value, VC_LEN_SIZE);
             //std::cout<<"inside findAttr valueVarCharLen is "<<valueVarCharLen<<std::endl;
             char* valueVarChar = (char*) malloc(valueVarCharLen);
-            memcpy(valueVarChar, (char*) value + sizeof(unsigned), valueVarCharLen);
+            memcpy(valueVarChar, (char*) value + VC_LEN_SIZE, valueVarCharLen);
             switch(compOp){
                 case EQ_OP:
                     found = std::string(valueVarChar, valueVarCharLen) == std::string(checkVarChar, checkVarCharLen);
-                    //std::cout<<"inside switch checkVarChar is "<< std::string((char*) checkAttr +sizeof(unsigned), checkVarCharLen)<<std::endl;
-                    //std::cout<<"inside switch valueVarChar is "<< std::string((char*) value +sizeof(unsigned), valueVarCharLen)<<std::endl;
                     break;
                 case LT_OP:
                     found = std::string(valueVarChar, valueVarCharLen) > std::string(checkVarChar, checkVarCharLen);
@@ -563,16 +566,13 @@ namespace PeterDB {
             free(valueVarChar);
         }
         else if (conditionType == TypeInt){
-            //std::cout<<"TypeInt"<<std::endl;
             int check;
-            memcpy(&check, (char*) checkAttr, sizeof(int));
+            memcpy(&check, (char*) checkAttr, INT_SIZE);
             int data;
-            memcpy(&data, (char*) value, sizeof(int));
+            memcpy(&data, (char*) value, INT_SIZE);
             switch(compOp){
                 case EQ_OP:
                     found = data == check;
-                    //std::cout<<"inside switch data is "<< data <<std::endl;
-                    //std::cout<<"inside switch check is "<< check <<std::endl;
                     break;
                 case LT_OP:
                     found = data > check;
@@ -594,9 +594,9 @@ namespace PeterDB {
         else if (conditionType == TypeReal){
             std::cout<<"TypeReal"<<std::endl;
             float check;
-            memcpy(&check, (char*)checkAttr, sizeof(int));
+            memcpy(&check, (char*)checkAttr, FLT_SIZE);
             float data;
-            memcpy(&data, (char*)value, sizeof(int));
+            memcpy(&data, (char*)value, FLT_SIZE);
             switch(compOp){
                 case EQ_OP:
                     found = data == check;
@@ -621,10 +621,21 @@ namespace PeterDB {
         return found;
     }
 
+    unsigned short RBFM_ScanIterator::getNumSlots(void* pageBuffer) {
+        unsigned short numSlots;
+        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
+        return numSlots;
+    }
+
+    void RBFM_ScanIterator::parseRecord(void* pageBuffer, unsigned short slotNum, short& recordOffset, short& recordLength) {
+        memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), REC_OFF_SIZE);
+        memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), REC_LEN_SIZE);
+    }
+
     RC RBFM_ScanIterator::close(){
         //currPageNum = 0;
         //currSlotNum = 0;
-        targetAttrIdx.clear();
+        targetAttrIdxs.clear();
         return fileHandle.closeFile();
     }
     /**********************************/
@@ -634,29 +645,33 @@ namespace PeterDB {
         const unsigned numAttrs = recordDescriptor.size();
         int nullIndicatorSize = ceil(((double) numAttrs)/8);
         char* nullIndicatorBuffer = new char[nullIndicatorSize];
-        std::memcpy(nullIndicatorBuffer, data, nullIndicatorSize);
+        memcpy(nullIndicatorBuffer, data, nullIndicatorSize);
 
-        short recordLength = sizeof(unsigned);
+        short recordLength = NUM_ATTR_SIZE;
         char* attrPtr = (char*) data + nullIndicatorSize;
         unsigned attrCounter = 0;
         for (int byteIndex = 0; byteIndex < nullIndicatorSize; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < numAttrs; bitIndex++) {
-                bool isNull = nullIndicatorBuffer[byteIndex] & (short) 1 << (short) (7 - bitIndex);
+                bool isNull = nullIndicatorBuffer[byteIndex] & (int) 1 << (int) (7 - bitIndex);
                 if (isNull) {
-                    recordLength += sizeof(unsigned);
+                    recordLength += ATTR_OFF_SIZE;
                 }
                 else {
                     Attribute attr = recordDescriptor[attrCounter];
                     AttrType attrType = attr.type;
                     if (attrType == TypeVarChar) {
                         unsigned varCharLen = 0;
-                        memcpy(&varCharLen, attrPtr, sizeof(unsigned));
-                        recordLength += 2*sizeof(unsigned) + varCharLen;
-                        attrPtr += sizeof(unsigned) + varCharLen;
+                        memcpy(&varCharLen, attrPtr, VC_LEN_SIZE);
+                        recordLength += ATTR_OFF_SIZE + VC_LEN_SIZE + varCharLen;
+                        attrPtr += VC_LEN_SIZE + varCharLen;
+                    }
+                    else if (attrType == TypeInt){
+                        recordLength += ATTR_OFF_SIZE + INT_SIZE;
+                        attrPtr += INT_SIZE;
                     }
                     else {
-                        recordLength += 2*sizeof(unsigned);
-                        attrPtr += sizeof(unsigned);
+                        recordLength += ATTR_OFF_SIZE + FLT_SIZE;
+                        attrPtr += FLT_SIZE;
                     }
                 }
                 attrCounter++;
@@ -670,25 +685,25 @@ namespace PeterDB {
                                                 void *recordBuffer) {
         // Write numAttrs
         const unsigned numAttrs = recordDescriptor.size();
-        std::memcpy(recordBuffer, &numAttrs, sizeof(unsigned));
+        memcpy(recordBuffer, &numAttrs, NUM_ATTR_SIZE);
 
         // Get null info bytes
         unsigned nullIndicatorSize = ceil(((double) numAttrs)/8);
         char* nullIndicatorBuffer = new char[nullIndicatorSize];
-        std::memcpy(nullIndicatorBuffer, data, nullIndicatorSize);
+        memcpy(nullIndicatorBuffer, data, nullIndicatorSize);
         //std::cout << "Inside generateRecord, nullInfoByte within page = " << nullIndicatorBuffer<< std::endl;
 
         // Create required pointers
-        int* offsetDirPtr = (int*) recordBuffer + 1;
-        char* attrWritePtr = (char*) recordBuffer + (1+numAttrs)*sizeof(unsigned);
-        char* attrReadPtr = (char*) data + nullIndicatorSize;
+        int offsetWritePtr = NUM_ATTR_SIZE;
+        int attrWritePtr = NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE;
+        int attrReadPtr = nullIndicatorSize;
 
         unsigned attrCounter = 0;
         unsigned attrOffset = 0;
         for (int byteIndex = 0; byteIndex < nullIndicatorSize; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < numAttrs; bitIndex++) {
                 // Determine if attribute is null
-                bool attrIsNull = nullIndicatorBuffer[byteIndex] & (short) 1 << (short) (7 - bitIndex);
+                bool attrIsNull = nullIndicatorBuffer[byteIndex] & (int) 1 << (int) (7 - bitIndex);
                 //std::cout << "The " << attrCounter << "th attr is null? " << attrIsNull << std::endl;
                 if (!attrIsNull) {
                     Attribute attr = recordDescriptor[attrCounter];
@@ -698,40 +713,52 @@ namespace PeterDB {
                     if (attrType == TypeVarChar) {
                         // get varChar length
                         unsigned varCharLen = 0;
-                        memcpy(&varCharLen, attrReadPtr, sizeof(unsigned));
+                        memcpy(&varCharLen, (char*) data + attrReadPtr, VC_LEN_SIZE);
                         //std::cout <<"inside generateRecord varCharLen is "<< varCharLen <<std::endl;
-                        attrReadPtr += sizeof(unsigned);
+                        attrReadPtr += VC_LEN_SIZE;
 
                         // write offset info to offsetDir
-                        memcpy(offsetDirPtr, &attrOffset, sizeof(int));
-                        attrOffset += sizeof(unsigned) + varCharLen;
-                        offsetDirPtr += 1;
+                        memcpy((char*) recordBuffer + offsetWritePtr, &attrOffset, ATTR_OFF_SIZE);
+                        attrOffset += VC_LEN_SIZE + varCharLen;
+                        offsetWritePtr += ATTR_OFF_SIZE;
 
                         // write length info and attribute to attribute region
-                        memcpy(attrWritePtr, &varCharLen, sizeof(unsigned));
-                        memcpy(attrWritePtr+sizeof(unsigned), attrReadPtr, varCharLen);
-                        attrWritePtr += sizeof(unsigned) + varCharLen;
+                        memcpy((char*) recordBuffer + attrWritePtr, &varCharLen, VC_LEN_SIZE);
+                        memcpy((char*) recordBuffer + attrWritePtr + VC_LEN_SIZE, (char*) data + attrReadPtr, varCharLen);
+                        attrWritePtr += VC_LEN_SIZE + varCharLen;
                         attrReadPtr += varCharLen;
                     }
-                    // Attribute is of type int or real
-                    else {
+                    // Attribute is of type int
+                    else if (attrType == TypeInt) {
                         // write offset info to offsetDir
-                        memcpy(offsetDirPtr, &attrOffset, sizeof(unsigned));
-                        attrOffset += 4;
-                        offsetDirPtr += 1;
+                        memcpy((char*) recordBuffer + offsetWritePtr, &attrOffset, ATTR_OFF_SIZE);
+                        attrOffset += INT_SIZE;
+                        offsetWritePtr += ATTR_OFF_SIZE;
 
                         // write attribute to attribute region
-                        memcpy(attrWritePtr, attrReadPtr, 4);
-                        attrWritePtr += 4;
-                        attrReadPtr += 4;
+                        memcpy((char*) recordBuffer + attrWritePtr, (char*) data + attrReadPtr, INT_SIZE);
+                        attrWritePtr += INT_SIZE;
+                        attrReadPtr += INT_SIZE;
+                    }
+                    // Attribute is of type real
+                    else {
+                        // write offset info to offsetDir
+                        memcpy((char*) recordBuffer + offsetWritePtr, &attrOffset, ATTR_OFF_SIZE);
+                        attrOffset += FLT_SIZE;
+                        offsetWritePtr += ATTR_OFF_SIZE;
+
+                        // write attribute to attribute region
+                        memcpy((char*) recordBuffer + attrWritePtr, (char*) data + attrReadPtr, FLT_SIZE);
+                        attrWritePtr += FLT_SIZE;
+                        attrReadPtr += FLT_SIZE;
                     }
                 }
                 // Attribute is null
                 else {
                     // write offset info to offsetDir
                     int nullAttrOffset = -1;
-                    memcpy(offsetDirPtr, &nullAttrOffset, sizeof(int));
-                    offsetDirPtr += 1;
+                    memcpy((char*) recordBuffer + offsetWritePtr, &nullAttrOffset, ATTR_OFF_SIZE);
+                    offsetWritePtr += ATTR_OFF_SIZE;
                 }
                 attrCounter++;
             }
@@ -752,7 +779,7 @@ namespace PeterDB {
             if (currRecordOffset >= maxRecordOffset) {
                 recordLenWithMaxOffset = getRecordLength(pageBuffer, slotNum);
                 if (recordLenWithMaxOffset == -1) {
-                    recordLenWithMaxOffset = sizeof(unsigned) + sizeof(short);
+                    recordLenWithMaxOffset = PTR_PN_SIZE + PTR_SN_SIZE;
                 }
                 maxRecordOffset = currRecordOffset;
             }
@@ -775,7 +802,7 @@ namespace PeterDB {
     void RecordBasedFileManager::initNewPage(void* recordBuffer, unsigned recordLength, void* pageBuffer) {
         memset(pageBuffer, 0, PAGE_SIZE);
         memcpy(pageBuffer, recordBuffer, recordLength);
-        unsigned short freeBytes = PAGE_SIZE-recordLength-2*sizeof(short);
+        unsigned short freeBytes = PAGE_SIZE-recordLength-N_SIZE-F_SIZE;
         unsigned short numSlots = 0;
         setNumSlots(pageBuffer, numSlots);
         setFreeBytes(pageBuffer, freeBytes);
@@ -816,7 +843,7 @@ namespace PeterDB {
 
         // set new numSlots and freeBytes
         unsigned short newNumSlots = numSlots + 1;
-        unsigned short newFreeBytes = getFreeBytes(pageBuffer)-2*sizeof(short);
+        unsigned short newFreeBytes = getFreeBytes(pageBuffer)-REC_OFF_SIZE-REC_LEN_SIZE;
         setNumSlots(pageBuffer, newNumSlots);
         setFreeBytes(pageBuffer, newFreeBytes);
         return newNumSlots-1;
@@ -837,7 +864,7 @@ namespace PeterDB {
                 // Accumulate the length of  records to be shifted
                 currRecordLength = getRecordLength(pageBuffer, slotNum);
                 if (currRecordLength == -1) {
-                    currRecordLength = sizeof(unsigned) + sizeof(short);
+                    currRecordLength = PTR_PN_SIZE + PTR_SN_SIZE;
                 }
                 sizeToBeShifted += currRecordLength;
             }
@@ -883,8 +910,8 @@ namespace PeterDB {
         unsigned newPageNum = rid.pageNum;
         unsigned short newSlotNum = rid.slotNum;
         while (recordLength == -1) {
-            memcpy(&newPageNum, (char*) pageBuffer + recordOffset, sizeof(unsigned));
-            memcpy(&newSlotNum, (char*) pageBuffer + recordOffset + sizeof(unsigned), sizeof(short));
+            memcpy(&newPageNum, (char*) pageBuffer + recordOffset, PTR_PN_SIZE);
+            memcpy(&newSlotNum, (char*) pageBuffer + recordOffset + PTR_PN_SIZE, PTR_SN_SIZE);
 
             fileHandle.readPage(newPageNum, pageBuffer);
 
@@ -910,42 +937,42 @@ namespace PeterDB {
     /*********************************************/
     unsigned short RecordBasedFileManager::getNumSlots(void* pageBuffer) {
         unsigned short numSlots;
-        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-2*sizeof(short), sizeof(short));
+        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
         return numSlots;
     }
 
     unsigned short RecordBasedFileManager::getFreeBytes(void* pageBuffer) {
         unsigned short freeBytes;
-        memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-sizeof(short), sizeof(short));
+        memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-F_SIZE, F_SIZE);
         return freeBytes;
     }
 
     short RecordBasedFileManager::getRecordLength(void* pageBuffer, unsigned short slotNum) {
         short recordLength;
-        memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), sizeof(short));
+        memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), REC_LEN_SIZE);
         return recordLength;
     }
 
     short RecordBasedFileManager::getRecordOffset(void* pageBuffer, unsigned short slotNum) {
         short recordOffset;
-        memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), sizeof(short));
+        memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), REC_OFF_SIZE);
         return recordOffset;
     }
 
     void RecordBasedFileManager::setNumSlots(void* pageBuffer, unsigned short numSlots) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-2*sizeof(short), &numSlots, sizeof(short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, &numSlots, N_SIZE);
     }
 
     void RecordBasedFileManager::setFreeBytes(void* pageBuffer, unsigned short freeBytes) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-sizeof(short), &freeBytes, sizeof(short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-F_SIZE, &freeBytes, F_SIZE);
     }
 
     void RecordBasedFileManager::setRecordLength(void* pageBuffer, unsigned short slotNum, short recordLength) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), &recordLength, sizeof(short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), &recordLength, REC_LEN_SIZE);
     }
 
     void RecordBasedFileManager::setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), &recordOffset, sizeof(short));
+        memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), &recordOffset, REC_OFF_SIZE);
     }
 
 } // namespace PeterDB
