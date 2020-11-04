@@ -207,7 +207,6 @@ namespace PeterDB {
 
         RC findRecord(FileHandle &fileHandle, void *pageBuffer, short &recordOffset, short &recordLength, RID &rid);
 
-
         /*********************************************/
         /*****    Getter and Setter functions  *******/
         /*********************************************/
