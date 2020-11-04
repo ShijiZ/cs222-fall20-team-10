@@ -6,7 +6,7 @@ namespace PeterDBTesting {
         // Try to delete the System Catalog.
         // If this is the first time, it will generate an error. It's OK and we will ignore that.
         rm.deleteCatalog();
-        std::cout<<"after delete" <<std::endl;
+
         std::string tableName = "should_not_be_created";
         // Delete the actual file
         remove(tableName.c_str());
@@ -18,10 +18,10 @@ namespace PeterDBTesting {
         ASSERT_NE(rm.createTable(tableName, table_attrs), success)
                                     << "Create table " << tableName << " should not succeed.";
         ASSERT_FALSE(fileExists(tableName)) << "Table " << tableName << " file should not exist now.";
-        std::cout<<"fileExists "<<std::endl;
+
         // Create Catalog
         ASSERT_EQ(rm.createCatalog(), success) << "Creating the Catalog should succeed.";
-        std::cout<<"before for loop"<<std::endl;
+
         for (int i = 1; i < 5; i++) {
             tableName = "rm_test_table_" + std::to_string(i);
 
@@ -687,14 +687,12 @@ namespace PeterDBTesting {
         PeterDB::RID rids[numTuples];
         std::vector<uint8_t *> tuples;
 
-        std::cout << "Inside conditional_scan test, before getAttributes" << std::endl;
         // GetAttributes
         ASSERT_EQ(rm.getAttributes(tableName, attrs), success) << "RelationManager::getAttributes() should succeed.";
 
         // Initialize a NULL field indicator
         nullsIndicator = initializeNullFieldsIndicator(attrs);
 
-        std::cout << "Inside conditional_scan test, before for loop" << std::endl;
         for (int i = 0; i < numTuples; i++) {
             memset(inBuffer, 0, bufSize);
 
@@ -714,10 +712,8 @@ namespace PeterDBTesting {
         std::string attr = "age";
         std::vector<std::string> attributes{attr};
 
-        std::cout << "Inside conditional_scan test, before scan" << std::endl;
         ASSERT_EQ(rm.scan(tableName, attr, PeterDB::GT_OP, &ageVal, attributes, rmsi), success)
                                     << "RelationManager::scan() should succeed.";
-        std::cout << "Inside conditional_scan test, after scan" << std::endl;
 
         memset(outBuffer, 0, bufSize);
         while (rmsi.getNextTuple(rid, outBuffer) != RM_EOF) {
