@@ -426,7 +426,7 @@ namespace PeterDBTesting {
         createLargeTable(tableName);
 
         inBuffer = malloc(bufSize);
-        int numTuples = 50;
+        int numTuples = 5000;
 
         // GetAttributes
         ASSERT_EQ(rm.getAttributes(tableName, attrs), success) << "RelationManager::getAttributes() should succeed.";
@@ -459,7 +459,7 @@ namespace PeterDBTesting {
         // 1. read tuple
 
         size_t size = 0;
-        int numTuples = 50;
+        int numTuples = 5000;
         inBuffer = malloc(bufSize);
         outBuffer = malloc(bufSize);
 
@@ -496,9 +496,9 @@ namespace PeterDBTesting {
         // 1. update tuple
         // 2. read tuple
 
-        int numTuples = 50;
-        unsigned numTuplesToUpdate1 = 20;
-        unsigned numTuplesToUpdate2 = 20;
+        int numTuples = 5000;
+        unsigned numTuplesToUpdate1 = 2000;
+        unsigned numTuplesToUpdate2 = 2000;
         inBuffer = malloc(bufSize);
         outBuffer = malloc(bufSize);
 
@@ -542,20 +542,12 @@ namespace PeterDBTesting {
 
         // Read the updated records and check the integrity
         for (unsigned i = 0; i < numTuplesToUpdate1; i++) {
-            std::cout << "Inside test 12, checking " << i << "th tuple" << std::endl;
             memset(inBuffer, 0, bufSize);
             memset(outBuffer, 0, bufSize);
             prepareLargeTuple(attrs.size(), nullsIndicator, i + 10, inBuffer, size);
 
             ASSERT_EQ(rm.readTuple(tableName, rids[i], outBuffer), success)
                                         << "RelationManager::readTuple() should succeed.";
-
-            std::ostringstream instream;
-            rm.printTuple(attrs, inBuffer, instream);
-            std::ostringstream outstream;
-            rm.printTuple(attrs, outBuffer, outstream);
-            std::cout << "inBuffer: " << instream.str() << std::endl;
-            std::cout << "outBuffer: " << outstream.str() << std::endl;
 
             // Compare whether the two memory blocks are the same
             ASSERT_EQ(memcmp(inBuffer, outBuffer, size), 0) << "the read tuple should match the updated tuple";
@@ -590,7 +582,7 @@ namespace PeterDBTesting {
         }
 
     }
-/**
+
     TEST_F(RM_Large_Table_Test, delete_and_read_large_tuples) {
         // This test is expected to be run after RM_Large_Table_Test::insert_large_tuples
 
@@ -695,12 +687,14 @@ namespace PeterDBTesting {
         PeterDB::RID rids[numTuples];
         std::vector<uint8_t *> tuples;
 
+        std::cout << "Inside conditional_scan test, before getAttributes" << std::endl;
         // GetAttributes
         ASSERT_EQ(rm.getAttributes(tableName, attrs), success) << "RelationManager::getAttributes() should succeed.";
 
         // Initialize a NULL field indicator
         nullsIndicator = initializeNullFieldsIndicator(attrs);
 
+        std::cout << "Inside conditional_scan test, before for loop" << std::endl;
         for (int i = 0; i < numTuples; i++) {
             memset(inBuffer, 0, bufSize);
 
@@ -720,8 +714,10 @@ namespace PeterDBTesting {
         std::string attr = "age";
         std::vector<std::string> attributes{attr};
 
+        std::cout << "Inside conditional_scan test, before scan" << std::endl;
         ASSERT_EQ(rm.scan(tableName, attr, PeterDB::GT_OP, &ageVal, attributes, rmsi), success)
                                     << "RelationManager::scan() should succeed.";
+        std::cout << "Inside conditional_scan test, after scan" << std::endl;
 
         memset(outBuffer, 0, bufSize);
         while (rmsi.getNextTuple(rid, outBuffer) != RM_EOF) {
@@ -1027,5 +1023,5 @@ namespace PeterDBTesting {
         checkPrintRecord("emp_name: Peter Anteater, age: 34, height: 175.3, salary: 24123.90, ssn: 123479765",
                          stream.str());
     }
-**/
+
 } // namespace PeterDBTesting

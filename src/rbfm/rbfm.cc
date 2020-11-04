@@ -1,5 +1,4 @@
 #include "src/include/rbfm.h"
-#include <bitset>
 
 namespace PeterDB {
     RecordBasedFileManager &RecordBasedFileManager::instance() {
@@ -58,8 +57,8 @@ namespace PeterDB {
                 bytesNeeded = recordLength+2*sizeof(short);
             }
 
-            std::cout << "Inside insertRecord(): (1) freeBytes: " << freeBytes << std::endl;
-            std::cout << "Inside insertRecord(): (1) bytesNeeded: " << bytesNeeded << std::endl;
+            //std::cout << "Inside insertRecord(): (1) freeBytes: " << freeBytes << std::endl;
+            //std::cout << "Inside insertRecord(): (1) bytesNeeded: " << bytesNeeded << std::endl;
             if (freeBytes >= bytesNeeded) {
                 recordInserted = insertRecordToPage(recordBuffer, recordOffset, recordLength, pageBuffer);
             }
@@ -83,7 +82,6 @@ namespace PeterDB {
         }
         if (!recordInserted) {
             initNewPage(recordBuffer, recordLength, pageBuffer);
-            std::cout << "Inside insertRecord: after initNewpage" << std::endl;
             fileHandle.appendPage(pageBuffer);
             pageToBeWritten = numPages;
 
@@ -109,6 +107,7 @@ namespace PeterDB {
         RID newRid = rid;
         RC errCode = checkAndFindRecord(fileHandle, pageBuffer, recordOffset, recordLength, newRid);
         if (errCode != 0) {
+            free(pageBuffer);
             return errCode;
         }
 
@@ -154,8 +153,8 @@ namespace PeterDB {
         short recordOffset, recordLength;
         RID newRid = rid;
         RC errCode = checkAndFindRecord(fileHandle, pageBuffer, recordOffset, recordLength, newRid);
-        std::cout << "inside deleteRecord, errCode is " << errCode << std::endl;
         if (errCode != 0) {
+            free(pageBuffer);
             return errCode;
         }
 
@@ -164,6 +163,7 @@ namespace PeterDB {
 
         // label record as deleted
         setRecordOffset(pageBuffer, newRid.slotNum, -1);
+        setRecordLength(pageBuffer, newRid.slotNum, 0);
 
         // update freeBytes
         unsigned short freeBytes = getFreeBytes(pageBuffer);
@@ -232,6 +232,7 @@ namespace PeterDB {
         RID newRid = rid;
         RC errCode = checkAndFindRecord(fileHandle, pageBuffer, recordOffset, recordLength, newRid);
         if (errCode != 0) {
+            free(pageBuffer);
             return errCode;
         }
 
@@ -276,7 +277,7 @@ namespace PeterDB {
             }
 
             unsigned newPageNum = pageToBeUpdated;
-            short newSlotNum = reuseOrInsertSlot(newRecordOffset, newRecordLength, newPageBuffer);
+            unsigned short newSlotNum = reuseOrInsertSlot(newRecordOffset, newRecordLength, newPageBuffer);
             fileHandle.writePage(pageToBeUpdated, newPageBuffer);
             free(newPageBuffer);
 
@@ -303,6 +304,7 @@ namespace PeterDB {
         RID newRid = rid;
         RC errCode = checkAndFindRecord(fileHandle, pageBuffer, recordOffset, recordLength, newRid);
         if (errCode != 0) {
+            free(pageBuffer);
             return errCode;
         }
 
@@ -396,15 +398,6 @@ namespace PeterDB {
     RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
         RecordBasedFileManager &rbfm = RecordBasedFileManager::instance();
         void* pageBuffer = malloc(PAGE_SIZE);
-
-        //std::fstream file;
-        //file.open("Tables");
-        //char* buffer = new char[PAGE_SIZE];
-        //file.seekg(0,std::ios::beg);
-        //file.read(buffer,4*sizeof(unsigned));
-        //unsigned numPages = ((unsigned*) buffer)[3];
-        //delete[] buffer;
-
         unsigned numPages = fileHandle.getNumberOfPages();
         int pageNum = 0;
         short slotNum = 0;
@@ -413,15 +406,13 @@ namespace PeterDB {
         bool foundCondAttr = false;
         int numAttrs = recordDescriptor.size();
         short numSlots = -1;
-        //std::cout<<"inside getNextRecord before outer for loop, currPageNum is "<<currPageNum<< ", numPages is " << numPages <<std::endl;
+
         for (pageNum = currPageNum; pageNum < numPages; pageNum++){
-            //std::cout<<"inside getNextRecord after enter outer for loop"<<std::endl;
-            //std::cout<<"inside getNextRecord before readPage"<<std::endl;
+            //std::cout<<"inside getNextRecord after enter outer for loop, currPageNum is "<<currPageNum<< ", pageNum is " << pageNum <<std::endl;
             RC errCode = fileHandle.readPage(pageNum, pageBuffer);
             if (errCode != 0) return errCode;
-            //std::cout<<"inside getNextRecord before getNumSlots"<<std::endl;
             numSlots = rbfm.getNumSlots(pageBuffer);
-            //std::cout<<"inside getNextRecord before inner for loop"<<std::endl;
+
             for (slotNum = currSlotNum; slotNum < numSlots; slotNum++) {
                 //std::cout<<"inside getNextRecord slotNum is "<<slotNum<<std::endl;
                 //std::cout<<"inside getNextRecord numSlots is "<<numSlots<<std::endl;
@@ -444,7 +435,7 @@ namespace PeterDB {
                     //std::cout<<"inside getNextRecord conditionAttrIdx is "<<conditionAttrIdx<<std::endl;
                     //std::cout<<"inside getNextRecord attrOffset is "<<attrOffset<<std::endl;
                     //std::cout<<"inside getNextRecord attrlen is "<<attrLen<<std::endl;
-                    if (attrLen != 0){
+                    if (attrLen > 0){
                         void* attrBuffer = malloc(attrLen);
                         memcpy((char*) attrBuffer, (char*) pageBuffer + recordOffset + sizeof(unsigned) + numAttrs*sizeof(int) + attrOffset, attrLen);
                         //std::cout<<"inside getNextRecord before found"<<std::endl;
@@ -460,6 +451,9 @@ namespace PeterDB {
             if (foundCondAttr){
                 break;
             }
+            if (slotNum == numSlots){
+                currSlotNum = 0;
+            }
         }
         //std::cout<<"inside getNextRecord after outer for loop" << std::endl;
 
@@ -467,10 +461,13 @@ namespace PeterDB {
             rid.pageNum = pageNum;
             rid.slotNum = slotNum;
 
-            currSlotNum = slotNum+1;
             if (slotNum == numSlots){
                 currSlotNum = 0;
                 currPageNum = pageNum+1;
+            }
+            else {
+                currSlotNum = slotNum+1;
+                currPageNum = pageNum;
             }
 
             int newNullIndicatorSize = ceil(((double) attributeNames.size())/8);
@@ -479,7 +476,6 @@ namespace PeterDB {
             memset(newNullIndicator,0, newNullIndicatorSize);
             int dataPtr = newNullIndicatorSize;
             //std::cout<<"inside getNextRecord inside if found, dataPtr is "<< dataPtr<<std::endl;
-
 
             for (short i = 0; i < attributeNames.size(); i++){
                 //std::cout<<"inside getNextRecord inside if found, attrbuteNames.size() is "<< attributeNames.size()<<std::endl;
@@ -522,8 +518,12 @@ namespace PeterDB {
                 attrLen = sizeof(unsigned);
             }
         }
+        else {
+            attrLen = 0;
+        }
         return 0;
     }
+
     bool RBFM_ScanIterator::findCondAttr(const void *checkAttr,short attrLen){
         bool found = false;
         //std::cout<<"inside findAttr before if conditionType is "<<conditionType<<std::endl;
@@ -544,16 +544,16 @@ namespace PeterDB {
                     //std::cout<<"inside switch valueVarChar is "<< std::string((char*) value +sizeof(unsigned), valueVarCharLen)<<std::endl;
                     break;
                 case LT_OP:
-                    found = std::string(valueVarChar, valueVarCharLen) < std::string(checkVarChar, checkVarCharLen);
-                    break;
-                case LE_OP:
-                    found = std::string(valueVarChar, valueVarCharLen) <= std::string(checkVarChar, checkVarCharLen);
-                    break;
-                case GT_OP:
                     found = std::string(valueVarChar, valueVarCharLen) > std::string(checkVarChar, checkVarCharLen);
                     break;
-                case GE_OP:
+                case LE_OP:
                     found = std::string(valueVarChar, valueVarCharLen) >= std::string(checkVarChar, checkVarCharLen);
+                    break;
+                case GT_OP:
+                    found = std::string(valueVarChar, valueVarCharLen) < std::string(checkVarChar, checkVarCharLen);
+                    break;
+                case GE_OP:
+                    found = std::string(valueVarChar, valueVarCharLen) <= std::string(checkVarChar, checkVarCharLen);
                     break;
                 case NE_OP:
                     found = std::string(valueVarChar, valueVarCharLen) != std::string(checkVarChar, checkVarCharLen);
@@ -575,16 +575,16 @@ namespace PeterDB {
                     //std::cout<<"inside switch check is "<< check <<std::endl;
                     break;
                 case LT_OP:
-                    found = data < check;
-                    break;
-                case LE_OP:
-                    found = data <= check;
-                    break;
-                case GT_OP:
                     found = data > check;
                     break;
-                case GE_OP:
+                case LE_OP:
                     found = data >= check;
+                    break;
+                case GT_OP:
+                    found = data < check;
+                    break;
+                case GE_OP:
+                    found = data <= check;
                     break;
                 case NE_OP:
                     found = data != check;
@@ -602,16 +602,16 @@ namespace PeterDB {
                     found = data == check;
                     break;
                 case LT_OP:
-                    found = data < check;
-                    break;
-                case LE_OP:
-                    found = data <= check;
-                    break;
-                case GT_OP:
                     found = data > check;
                     break;
-                case GE_OP:
+                case LE_OP:
                     found = data >= check;
+                    break;
+                case GT_OP:
+                    found = data < check;
+                    break;
+                case GE_OP:
+                    found = data <= check;
                     break;
                 case NE_OP:
                     found = data != check;
@@ -751,6 +751,9 @@ namespace PeterDB {
             currRecordOffset = getRecordOffset(pageBuffer, slotNum);
             if (currRecordOffset >= maxRecordOffset) {
                 recordLenWithMaxOffset = getRecordLength(pageBuffer, slotNum);
+                if (recordLenWithMaxOffset == -1) {
+                    recordLenWithMaxOffset = sizeof(unsigned) + sizeof(short);
+                }
                 maxRecordOffset = currRecordOffset;
             }
         }
@@ -833,6 +836,9 @@ namespace PeterDB {
 
                 // Accumulate the length of  records to be shifted
                 currRecordLength = getRecordLength(pageBuffer, slotNum);
+                if (currRecordLength == -1) {
+                    currRecordLength = sizeof(unsigned) + sizeof(short);
+                }
                 sizeToBeShifted += currRecordLength;
             }
         }
