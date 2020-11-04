@@ -40,7 +40,7 @@ namespace PeterDB {
         if (!file.is_open()) {
             return -1;
         }
-        // If unsuccessful, delete the file
+        // If successful, delete the file
         else {
             file.close();
             remove(fileName.c_str());

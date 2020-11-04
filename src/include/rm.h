@@ -1,11 +1,11 @@
 #ifndef _rm_h_
 #define _rm_h_
 
+#define TAB_COL_VC_LEN 50
+#define TAB_COL_NULL_SIZE 1
+
 #include <string>
 #include <vector>
-/// debug
-#include <sstream>
-///
 
 #include "src/include/rbfm.h"
 
@@ -15,9 +15,9 @@ namespace PeterDB {
     // RM_ScanIterator is an iterator to go through tuples
     class RM_ScanIterator {
     public:
-        RM_ScanIterator();
+        RM_ScanIterator() = default;
 
-        ~RM_ScanIterator();
+        ~RM_ScanIterator() = default;
 
         // "data" follows the same format as RelationManager::insertTuple()
         RC getNextTuple(RID &rid, void *data);

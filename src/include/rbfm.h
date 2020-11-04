@@ -227,8 +227,6 @@ namespace PeterDB {
 
         void setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset);
 
-
-
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
         ~RecordBasedFileManager();                                                  // Prevent unwanted destruction
