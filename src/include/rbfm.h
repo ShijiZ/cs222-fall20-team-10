@@ -1,6 +1,24 @@
 #ifndef _rbfm_h_
 #define _rbfm_h_
 
+#define REC_OFF_SIZE sizeof(short)
+#define REC_LEN_SIZE sizeof(short)
+#define NUM_ATTR_SIZE sizeof(unsigned)
+#define ATTR_OFF_SIZE sizeof(int)
+
+#define VC_LEN_SIZE sizeof(unsigned)
+#define INT_SIZE sizeof(int)
+#define FLT_SIZE sizeof(float)
+
+#define PTR_PN_SIZE sizeof(unsigned)
+#define PTR_SN_SIZE sizeof(short)
+
+#define N_SIZE sizeof(short)
+#define F_SIZE sizeof(short)
+
+#define ATTR_TYPE_SIZE sizeof(AttrType)
+#define ATTR_LEN_SIZE sizeof(AttrLength)
+
 #include <vector>
 
 #include "pfm.h"
@@ -59,9 +77,9 @@ namespace PeterDB {
 
     class RBFM_ScanIterator {
     public:
-        RBFM_ScanIterator() = default;;
+        RBFM_ScanIterator() = default;
 
-        ~RBFM_ScanIterator() = default;;
+        ~RBFM_ScanIterator() = default;
 
         // Never keep the results in the memory. When getNextRecord() is called,
         // a satisfying record needs to be fetched from the file.
@@ -69,30 +87,32 @@ namespace PeterDB {
 
         RC getNextRecord(RID &rid, void *data);
 
-        void init(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                 const CompOp compOp, const void *value,
-                 const std::vector<std::string> &attributeNames);
+        RC initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                      const std::string &conditionAttribute, const CompOp compOp, const void *value,
+                      const std::vector<std::string> &attributeNames);
 
         RC close();
 
-        std::vector<short> targetAttrIdx;
-        short conditionAttrIdx;
-        AttrType conditionType;
-
         FileHandle fileHandle;
-    private:
-        //FileHandle* fileHandle;
 
+    private:
         std::vector<Attribute> recordDescriptor;
         CompOp compOp;
         const void* value;
         std::vector<std::string> attributeNames;
         int currPageNum;
         short currSlotNum;
-        //RecordBasedFileManager *rbfm;
+        std::vector<short> targetAttrIdxs;
+        short conditionAttrIdx;
+        AttrType conditionType;
 
         bool findCondAttr(const void *checkAttr, short attrLen);
+
         RC parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs);
+
+        unsigned short getNumSlots(void* pageBuffer);
+
+        void parseRecord(void* pageBuffer, unsigned short slotNum, short& recordOffset, short& recordLength);
     };
 
     class RecordBasedFileManager {
@@ -162,7 +182,7 @@ namespace PeterDB {
                 const std::vector<std::string> &attributeNames, // a list of projected attributes
                 RBFM_ScanIterator &rbfm_ScanIterator);
 
-    //private:
+    private:
         PagedFileManager* pfm;
 
         /**********************************/
