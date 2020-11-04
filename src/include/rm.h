@@ -82,16 +82,6 @@ namespace PeterDB {
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
-        /*
-        void generateTablesRecord(int table_id, const std::string &table_name,
-                                  const std::string &file_name, void *recordBuffer);
-
-        void generateColumnsRecord(int table_id, const std::string &column_name, AttrType column_type,
-                                   int column_length, int column_position, void *recordBuffer);
-
-        RC insertTablesOrColumnsTuple(const std::string &tableName, const void *data);
-         */
-
         RC insertTablesRecord(int table_id, const std::string &table_name, const std::string &file_name);
 
         RC insertColumnsRecord(int table_id, const std::vector<Attribute>& recordDescriptor);
