@@ -42,6 +42,7 @@ namespace PeterDB {
         }
         // If unsuccessful, delete the file
         else {
+            file.close();
             remove(fileName.c_str());
             return 0;
         }
