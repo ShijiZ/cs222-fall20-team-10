@@ -673,7 +673,10 @@ namespace PeterDB {
                                      const std::vector<std::string> &attributeNames) {
         this->recordDescriptor = recordDescriptor;
         this->compOp = compOp;
-        this->value = value;
+
+        if (value == NULL || value == nullptr) this->value = nullptr;
+        else this->value = value;
+
         this->attributeNames = attributeNames;
         this->currPageNum = 0;
         this->currSlotNum = 0;
@@ -737,16 +740,19 @@ namespace PeterDB {
                     short attrLen = 0;
                     RC errCode = parseAttr(attrLen, attrOffset, pageBuffer, recordOffset, conditionAttrIdx, numAttrs);
                     if (errCode != 0) return errCode;
-                    //std::cout<<"inside getNextRecord conditionAttrIdx is "<<conditionAttrIdx<<std::endl;
-                    //std::cout<<"inside getNextRecord attrOffset is "<<attrOffset<<std::endl;
-                    //std::cout<<"inside getNextRecord attrlen is "<<attrLen<<std::endl;
-                    if (attrLen > 0){
+
+                    // Conditional attribute in current record is not null
+                    if (attrOffset != -1){
                         void* attrBuffer = malloc(attrLen);
                         memcpy((char*) attrBuffer, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, attrLen);
                         foundCondAttr = findCondAttr(attrBuffer, attrLen);
                         free(attrBuffer);
-                        if (foundCondAttr) break;
                     }
+                    // Conditional attribute in current record is null
+                    else {
+                        foundCondAttr = value == nullptr;
+                    }
+                    if (foundCondAttr) break;
                 }
             }
             if (foundCondAttr) break;
@@ -775,20 +781,18 @@ namespace PeterDB {
             //std::cout<<"inside getNextRecord inside if found, dataPtr is "<< dataPtr<<std::endl;
 
             for (short i = 0; i < attributeNames.size(); i++){
-                //std::cout<<"inside getNextRecord inside if found, attrbuteNames.size() is "<< attributeNames.size()<<std::endl;
-                //std::cout<<"inside getNextRecord inside if found, i is "<< i<<std::endl;
                 short attrLen = 0;
                 short attrOffset = 0;
                 RC errCode = parseAttr(attrLen, attrOffset, pageBuffer, recordOffset, targetAttrIdxs[i], numAttrs);
                 if (errCode != 0) return errCode;
-                //std::cout<<"inside getNextRecord inside if found, attrOffset is "<< attrOffset<<std::endl;
-                //std::cout<<"inside getNextRecord inside if found, attrLen is "<< attrLen<<std::endl;
-                if (attrLen > 0){
+
+                // Target attribute in current record is not null
+                if (attrOffset != -1){
                     memcpy((char*) data + dataPtr, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, attrLen);
                     dataPtr += attrLen;
                 }
+                // Target attribute in current record is null
                 else{
-                    //std::cout << "inside getNextRecord inside if found, NULL value appeared " << std::endl;
                     int byteIndex = i / 8;
                     int bitIndex = i % 8;
                     newNullIndicator[byteIndex] += pow(2, 7-bitIndex);
