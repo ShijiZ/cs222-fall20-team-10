@@ -50,8 +50,6 @@ namespace PeterDB {
         attr.length = (AttrLength) INT_SIZE;
         columnsRecordDescriptor.push_back(attr);
 
-        //maxTableId = getMaxTableId();
-
         RecordBasedFileManager& rbfm = RecordBasedFileManager::instance();
         this->rbfm = &rbfm;
     }
@@ -63,11 +61,9 @@ namespace PeterDB {
     RelationManager &RelationManager::operator=(const RelationManager &) = default;
 
     RC RelationManager::createCatalog() {
-        //maxTableId++;
         RC errCode = rbfm->createFile("Tables");
         if (errCode != 0) return errCode;
 
-        //maxTableId++;
         errCode = rbfm->createFile("Columns");
         if (errCode != 0) return errCode;
 
@@ -93,8 +89,6 @@ namespace PeterDB {
         errCode = rbfm->destroyFile("Columns");
         if (errCode != 0) return errCode;
 
-        //maxTableId = 0;
-
         return 0;
     }
 
@@ -113,12 +107,11 @@ namespace PeterDB {
         if (columnsCatalogFile.is_open()) columnsCatalogFile.close();
         else return -1;
 
-        //maxTableId++;
-        int maxTableId = getMaxTableId() + 1;
-        RC errCode = insertTablesRecord(maxTableId, tableName, tableName);
+        int tableId = getMaxTableId() + 1;
+        RC errCode = insertTablesRecord(tableId, tableName, tableName);
         if (errCode != 0) return errCode;
 
-        errCode = insertColumnsRecord(maxTableId, attrs);
+        errCode = insertColumnsRecord(tableId, attrs);
         if (errCode != 0) return errCode;
 
         errCode = rbfm->createFile(tableName);

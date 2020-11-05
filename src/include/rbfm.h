@@ -228,8 +228,11 @@ namespace PeterDB {
 
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
+
         ~RecordBasedFileManager();                                                  // Prevent unwanted destruction
+
         RecordBasedFileManager(const RecordBasedFileManager &);                     // Prevent construction by copying
+
         RecordBasedFileManager &operator=(const RecordBasedFileManager &);          // Prevent assignment
 
     };

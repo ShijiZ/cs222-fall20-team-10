@@ -77,8 +77,6 @@ namespace PeterDB {
 
         std::vector<Attribute> columnsRecordDescriptor;
 
-        //int maxTableId;
-
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
@@ -94,8 +92,11 @@ namespace PeterDB {
 
     protected:
         RelationManager();                                                  // Prevent construction
+
         ~RelationManager();                                                 // Prevent unwanted destruction
+
         RelationManager(const RelationManager &);                           // Prevent construction by copying
+
         RelationManager &operator=(const RelationManager &);                // Prevent assignment
 
     };
