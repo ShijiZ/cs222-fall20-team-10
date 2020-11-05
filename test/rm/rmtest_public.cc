@@ -11,7 +11,6 @@ namespace PeterDBTesting {
         // Delete the actual file
         remove(tableName.c_str());
 
-
         // Create a table should not succeed without Catalog
         std::vector<PeterDB::Attribute> table_attrs = parseDDL(
                 "CREATE TABLE " + tableName + " (field1 INT, field2 REAL, field3 VARCHAR(20), field4 VARCHAR(90))");
