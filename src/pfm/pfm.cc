@@ -111,9 +111,9 @@ namespace PeterDB {
         //}
     }
 
-    RC FileHandle::readPage(PageNum pageNum, void *data) {
+    RC FileHandle::readPage(PageNum pageNum, void* data) {
         if (pageNum < numPages) {
-            fileToBeHandled->seekg((1 + pageNum) * PAGE_SIZE);
+            fileToBeHandled->seekg((1+pageNum)*PAGE_SIZE);
             fileToBeHandled->read((char*) data , PAGE_SIZE);
             readPageCounter++;
             writeHiddenPage();
@@ -124,9 +124,9 @@ namespace PeterDB {
         }
     }
 
-    RC FileHandle::writePage(PageNum pageNum, const void *data) {
+    RC FileHandle::writePage(PageNum pageNum, const void* data) {
         if (pageNum < numPages) {
-            fileToBeHandled->seekp((1 + pageNum) * PAGE_SIZE);
+            fileToBeHandled->seekp((1+pageNum)*PAGE_SIZE);
             fileToBeHandled->write((char*) data, PAGE_SIZE);
             writePageCounter++;
             writeHiddenPage();
@@ -137,7 +137,7 @@ namespace PeterDB {
         }
     }
 
-    RC FileHandle::appendPage(const void *data) {
+    RC FileHandle::appendPage(const void* data) {
         fileToBeHandled->seekp(0, std::ios::end);
         fileToBeHandled->write((char*) data, PAGE_SIZE);
         appendPageCounter++;

@@ -11,46 +11,46 @@ namespace PeterDB {
         // Prepare tables recordDescriptor
         attr.name = "table-id";
         attr.type = TypeInt;
-        attr.length = (AttrLength) 4;
+        attr.length = (AttrLength) INT_SIZE;
         tablesRecordDescriptor.push_back(attr);
 
         attr.name = "table-name";
         attr.type = TypeVarChar;
-        attr.length = (AttrLength) 50;
+        attr.length = (AttrLength) TAB_COL_VC_LEN;
         tablesRecordDescriptor.push_back(attr);
 
         attr.name = "file-name";
         attr.type = TypeVarChar;
-        attr.length = (AttrLength) 50;
+        attr.length = (AttrLength) TAB_COL_VC_LEN;
         tablesRecordDescriptor.push_back(attr);
 
         // Prepare columns recordDescriptor
         attr.name = "table-id";
         attr.type = TypeInt;
-        attr.length = (AttrLength) 4;
+        attr.length = (AttrLength) INT_SIZE;
         columnsRecordDescriptor.push_back(attr);
 
         attr.name = "column-name";
         attr.type = TypeVarChar;
-        attr.length = (AttrLength) 50;
+        attr.length = (AttrLength) TAB_COL_VC_LEN;
         columnsRecordDescriptor.push_back(attr);
 
         attr.name = "column-type";
         attr.type = TypeInt;
-        attr.length = (AttrLength) 4;
+        attr.length = (AttrLength) INT_SIZE;
         columnsRecordDescriptor.push_back(attr);
 
         attr.name = "column-length";
         attr.type = TypeInt;
-        attr.length = (AttrLength) 4;
+        attr.length = (AttrLength) INT_SIZE;
         columnsRecordDescriptor.push_back(attr);
 
         attr.name = "column-position";
         attr.type = TypeInt;
-        attr.length = (AttrLength) 4;
+        attr.length = (AttrLength) INT_SIZE;
         columnsRecordDescriptor.push_back(attr);
 
-        maxTableId = getMaxTableId();
+        //maxTableId = getMaxTableId();
 
         RecordBasedFileManager& rbfm = RecordBasedFileManager::instance();
         this->rbfm = &rbfm;
@@ -63,11 +63,11 @@ namespace PeterDB {
     RelationManager &RelationManager::operator=(const RelationManager &) = default;
 
     RC RelationManager::createCatalog() {
-        maxTableId++;
+        //maxTableId++;
         RC errCode = rbfm->createFile("Tables");
         if (errCode != 0) return errCode;
 
-        maxTableId++;
+        //maxTableId++;
         errCode = rbfm->createFile("Columns");
         if (errCode != 0) return errCode;
 
@@ -93,7 +93,7 @@ namespace PeterDB {
         errCode = rbfm->destroyFile("Columns");
         if (errCode != 0) return errCode;
 
-        maxTableId = 0;
+        //maxTableId = 0;
 
         return 0;
     }
@@ -113,7 +113,8 @@ namespace PeterDB {
         if (columnsCatalogFile.is_open()) columnsCatalogFile.close();
         else return -1;
 
-        maxTableId++;
+        //maxTableId++;
+        int maxTableId = getMaxTableId() + 1;
         RC errCode = insertTablesRecord(maxTableId, tableName, tableName);
         if (errCode != 0) return errCode;
 
@@ -149,17 +150,13 @@ namespace PeterDB {
         if (errCode != 0) return errCode;
 
         // Delete records form Columns table
-        std::string conditionAttribute = "table-id";
-
-        CompOp compOp = EQ_OP;
+        int* value = &tableId;
 
         std::vector<std::string> attributeNames;
         attributeNames.emplace_back("table-id");
 
-        int* value = &tableId;
-
         RM_ScanIterator rmScanIterator;
-        errCode = scan("Columns", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
+        errCode = scan("Columns", "table-id", EQ_OP, value, attributeNames, rmScanIterator);
         if (errCode != 0) return errCode;
 
         FileHandle columnsFileHandle;
@@ -183,7 +180,6 @@ namespace PeterDB {
     RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attribute> &attrs) {
         if (tableName == "Tables") attrs = tablesRecordDescriptor;
         else if (tableName == "Columns") attrs = columnsRecordDescriptor;
-
         else {
             void* data = malloc(1+INT_SIZE);
             RID dumRid;
@@ -199,7 +195,7 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
+    RC RelationManager::insertTuple(const std::string &tableName, const void* data, RID &rid) {
         if (tableName == "Tables" || tableName == "Columns") return -1;
 
         FileHandle fileHandle;
@@ -239,7 +235,7 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RelationManager::updateTuple(const std::string &tableName, const void *data, const RID &rid) {
+    RC RelationManager::updateTuple(const std::string &tableName, const void* data, const RID &rid) {
         if (tableName == "Tables" || tableName == "Columns") return -1;
 
         FileHandle fileHandle;
@@ -259,7 +255,7 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void *data) {
+    RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void* data) {
         FileHandle fileHandle;
         RC errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
@@ -277,12 +273,12 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RelationManager::printTuple(const std::vector<Attribute> &attrs, const void *data, std::ostream &out) {
+    RC RelationManager::printTuple(const std::vector<Attribute> &attrs, const void* data, std::ostream &out) {
         return rbfm->printRecord(attrs, data, out);
     }
 
     RC RelationManager::readAttribute(const std::string &tableName, const RID &rid, const std::string &attributeName,
-                                      void *data) {
+                                      void* data) {
         FileHandle fileHandle;
         RC errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
@@ -303,7 +299,7 @@ namespace PeterDB {
     RC RelationManager::scan(const std::string &tableName,
                              const std::string &conditionAttribute,
                              const CompOp compOp,
-                             const void *value,
+                             const void* value,
                              const std::vector<std::string> &attributeNames,
                              RM_ScanIterator &rm_ScanIterator) {
         RC errCode = rbfm->openFile(tableName, rm_ScanIterator.rbfm_scanIterator.fileHandle);
@@ -339,7 +335,7 @@ namespace PeterDB {
         if (errCode != 0) return errCode;
 
         // Generate record for Tables table
-        char *recordBuffer = (char*) malloc(TAB_COL_NULL_SIZE+INT_SIZE+2*VC_LEN_SIZE+2*TAB_COL_VC_LEN);
+        char* recordBuffer = (char*) malloc(TAB_COL_NULL_SIZE+INT_SIZE+2*VC_LEN_SIZE+2*TAB_COL_VC_LEN);
         unsigned recordBufferPtr = 0;
 
         char nullIndicator = 0;  // 00000000
@@ -378,7 +374,7 @@ namespace PeterDB {
         RC errCode = rbfm->openFile("Columns", fileHandle);
         if (errCode != 0) return errCode;
 
-        char *recordBuffer = (char*) malloc(TAB_COL_NULL_SIZE+4*INT_SIZE+VC_LEN_SIZE+TAB_COL_VC_LEN);
+        char* recordBuffer = (char*) malloc(TAB_COL_NULL_SIZE+4*INT_SIZE+VC_LEN_SIZE+TAB_COL_VC_LEN);
         int column_position = 1;
         for (Attribute attr : recordDescriptor) {
             // Generate record for Columns table
@@ -449,20 +445,17 @@ namespace PeterDB {
         return maxTableId;
     }
 
-    RC RelationManager::getTableId(const std::string &tableName, RID &rid, void *data) {
-        std::vector<std::string> attributeNames;
-        attributeNames.emplace_back("table-id");
-
-        std::string conditionAttribute = "table-name";
-
+    RC RelationManager::getTableId(const std::string &tableName, RID &rid, void* data) {
         unsigned varCharLen = tableName.size();
         void* value = malloc(VC_LEN_SIZE + varCharLen);
         memcpy(value, &varCharLen, VC_LEN_SIZE);
-        memcpy((char*) value+VC_LEN_SIZE, tableName.c_str(), varCharLen);
-        CompOp compOp = EQ_OP;
+        memcpy((char*) value + VC_LEN_SIZE, tableName.c_str(), varCharLen);
+
+        std::vector<std::string> attributeNames;
+        attributeNames.emplace_back("table-id");
 
         RM_ScanIterator rmScanIterator;
-        RC errCode = scan("Tables", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
+        RC errCode = scan("Tables", "table-name", EQ_OP, value, attributeNames, rmScanIterator);
         if (errCode != 0) return errCode;
 
         if (rmScanIterator.getNextTuple(rid, data) != RM_EOF) {
@@ -479,19 +472,15 @@ namespace PeterDB {
     }
 
     RC RelationManager::buildRecordDescriptor(int tableId, std::vector<Attribute> &attrs) {
+        int* value = &tableId;
+
         std::vector<std::string> attributeNames;
         attributeNames.emplace_back("column-name");
         attributeNames.emplace_back("column-type");
         attributeNames.emplace_back("column-length");
 
-        std::string conditionAttribute = "table-id";
-
-        CompOp compOp = EQ_OP;
-
-        int* value = &tableId;
-
         RM_ScanIterator rmScanIterator;
-        RC errCode = scan("Columns", conditionAttribute, compOp, value, attributeNames, rmScanIterator);
+        RC errCode = scan("Columns", "table-id", EQ_OP, value, attributeNames, rmScanIterator);
         if (errCode != 0) return errCode;
 
         RID dumRid;
@@ -528,7 +517,7 @@ namespace PeterDB {
     /***********************************************/
     /*****    functions of rm_Scan_Iterator  *******/
     /***********************************************/
-    RC RM_ScanIterator::getNextTuple(RID &rid, void *data) {
+    RC RM_ScanIterator::getNextTuple(RID &rid, void* data) {
         RC errCode = rbfm_scanIterator.getNextRecord(rid, data);
         if (errCode == RBFM_EOF) return RM_EOF;
         else return errCode;

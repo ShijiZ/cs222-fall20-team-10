@@ -35,7 +35,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                            const void *data, RID &rid) {
+                                            const void* data, RID &rid) {
         short recordLength = generateRecordLength(recordDescriptor, data);
         //std::cout << "Inside insertRecord: Record length is " << recordLength << std::endl;
 
@@ -92,7 +92,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                          const RID &rid, void *data) {
+                                          const RID &rid, void* data) {
         void* pageBuffer = malloc(PAGE_SIZE);
         short recordOffset, recordLength;
         RID newRid = rid;
@@ -164,11 +164,11 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
+    RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void* data,
                                            std::ostream &out) {
         unsigned numAttrs = recordDescriptor.size();
         unsigned nullIndicatorSize = ceil((double) numAttrs/8);
-        auto * nullIndicator = (unsigned char*)malloc(nullIndicatorSize);
+        auto * nullIndicator = (unsigned char*) malloc(nullIndicatorSize);
 
         int attrCounter = 0;
         memcpy(nullIndicator, (char*) data, nullIndicatorSize);
@@ -214,7 +214,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                            const void *data, const RID &rid) {
+                                            const void* data, const RID &rid) {
         void* pageBuffer = malloc(PAGE_SIZE);
         short recordOffset, recordLength;
         RID newRid = rid;
@@ -285,7 +285,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                             const RID &rid, const std::string &attributeName, void *data) {
+                                             const RID &rid, const std::string &attributeName, void* data) {
         void* pageBuffer = malloc(PAGE_SIZE);
         short recordOffset, recordLength;
         RID newRid = rid;
@@ -334,7 +334,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                    const std::string &conditionAttribute, const CompOp compOp, const void *value,
+                                    const std::string &conditionAttribute, const CompOp compOp, const void* value,
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
        return rbfm_ScanIterator.initialize(fileHandle, recordDescriptor, conditionAttribute,
@@ -344,7 +344,7 @@ namespace PeterDB {
     /**********************************/
     /*****    Helper functions  *******/
     /**********************************/
-    short RecordBasedFileManager::generateRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data) {
+    short RecordBasedFileManager::generateRecordLength(const std::vector<Attribute> &recordDescriptor, const void* data) {
         // Get nullIndicator
         const unsigned numAttrs = recordDescriptor.size();
         int nullIndicatorSize = ceil(((double) numAttrs)/8);
@@ -390,8 +390,8 @@ namespace PeterDB {
         return recordLength;
     }
 
-    void RecordBasedFileManager::generateRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
-                                                void *recordBuffer) {
+    void RecordBasedFileManager::generateRecord(const std::vector<Attribute> &recordDescriptor, const void* data,
+                                                void* recordBuffer) {
         // Write numAttrs
         const unsigned numAttrs = recordDescriptor.size();
         memcpy(recordBuffer, &numAttrs, NUM_ATTR_SIZE);
@@ -575,17 +575,17 @@ namespace PeterDB {
         memcpy((char*) pageBuffer+recordOffset+recordLength+distance, (char*) pageBuffer+recordOffset+recordLength, sizeToBeShifted);
     }
 
-    RC RecordBasedFileManager::checkAndFindRecord(FileHandle &fileHandle, void *pageBuffer,
+    RC RecordBasedFileManager::checkAndFindRecord(FileHandle &fileHandle, void* pageBuffer,
                                                   short &recordOffset, short &recordLength, RID &rid) {
+        // validate pageNum
         unsigned numPages = fileHandle.getNumberOfPages();
         //std::cout<<"inside checkAndFindRecord rid.pageNum is "<<rid.pageNum<<std::endl;
         //std::cout<<"inside checkAndFindRecord numPages is "<<numPages<<std::endl;
-        // pageNum is not valid
         if (rid.pageNum >= numPages) return -1;
 
         fileHandle.readPage(rid.pageNum, pageBuffer);
 
-        // slotNum is not valid
+        // validate slotNum
         unsigned short numSlots = getNumSlots(pageBuffer);
         //std::cout<<"inside checkAndFindRecord rid.slotNum is "<<rid.slotNum<<std::endl;
         //std::cout<<"inside checkAndFindRecord numSlots is "<<numSlots<<std::endl;
@@ -594,7 +594,7 @@ namespace PeterDB {
         return findRecord(fileHandle, pageBuffer,recordOffset, recordLength, rid);
     }
 
-    RC RecordBasedFileManager::findRecord(FileHandle &fileHandle, void *pageBuffer,
+    RC RecordBasedFileManager::findRecord(FileHandle &fileHandle, void* pageBuffer,
                                             short &recordOffset, short &recordLength, RID &rid) {
         // get record offset. If is -1, record is already deleted.
         recordOffset = getRecordOffset(pageBuffer, rid.slotNum);
@@ -669,7 +669,7 @@ namespace PeterDB {
     /*****    functions of rbfm_Scan_Iterator  *******/
     /*************************************************/
     RC RBFM_ScanIterator::initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                     const std::string &conditionAttribute, const CompOp compOp, const void *value,
+                                     const std::string &conditionAttribute, const CompOp compOp, const void* value,
                                      const std::vector<std::string> &attributeNames) {
         this->recordDescriptor = recordDescriptor;
         this->compOp = compOp;
@@ -710,7 +710,7 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
+    RC RBFM_ScanIterator::getNextRecord(RID &rid, void* data) {
         void* pageBuffer = malloc(PAGE_SIZE);
         unsigned numPages = fileHandle.getNumberOfPages();
         int pageNum = 0;
@@ -807,7 +807,7 @@ namespace PeterDB {
         return RBFM_EOF;
     }
 
-    RC RBFM_ScanIterator::parseAttr(short &attrLen, short &attrOffset, void *pageBuffer, short recordOffset, short idx, int numAttrs){
+    RC RBFM_ScanIterator::parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs){
         memcpy(&attrOffset, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + idx*ATTR_OFF_SIZE, ATTR_OFF_SIZE);
         // Attribute is not null
         if (attrOffset != -1) {
@@ -833,7 +833,7 @@ namespace PeterDB {
         return 0;
     }
 
-    bool RBFM_ScanIterator::findCondAttr(const void *checkAttr, short attrLen){
+    bool RBFM_ScanIterator::findCondAttr(const void* checkAttr, short attrLen){
         bool found = false;
         // Attribute is of type varChar
         if (conditionType == TypeVarChar) {
