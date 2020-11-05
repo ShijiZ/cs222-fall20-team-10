@@ -77,7 +77,7 @@ namespace PeterDB {
 
         std::vector<Attribute> columnsRecordDescriptor;
 
-        int maxTableId;
+        //int maxTableId;
 
         /**********************************/
         /*****    Helper functions  *******/
