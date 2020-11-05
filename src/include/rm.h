@@ -1,11 +1,11 @@
 #ifndef _rm_h_
 #define _rm_h_
 
+#define TAB_COL_VC_LEN 50
+#define TAB_COL_NULL_SIZE 1
+
 #include <string>
 #include <vector>
-/// debug
-#include <sstream>
-///
 
 #include "src/include/rbfm.h"
 
@@ -15,9 +15,9 @@ namespace PeterDB {
     // RM_ScanIterator is an iterator to go through tuples
     class RM_ScanIterator {
     public:
-        RM_ScanIterator();
+        RM_ScanIterator() = default;
 
-        ~RM_ScanIterator();
+        ~RM_ScanIterator() = default;
 
         // "data" follows the same format as RelationManager::insertTuple()
         RC getNextTuple(RID &rid, void *data);
@@ -77,21 +77,9 @@ namespace PeterDB {
 
         std::vector<Attribute> columnsRecordDescriptor;
 
-        int maxTableId;
-
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
-        /*
-        void generateTablesRecord(int table_id, const std::string &table_name,
-                                  const std::string &file_name, void *recordBuffer);
-
-        void generateColumnsRecord(int table_id, const std::string &column_name, AttrType column_type,
-                                   int column_length, int column_position, void *recordBuffer);
-
-        RC insertTablesOrColumnsTuple(const std::string &tableName, const void *data);
-         */
-
         RC insertTablesRecord(int table_id, const std::string &table_name, const std::string &file_name);
 
         RC insertColumnsRecord(int table_id, const std::vector<Attribute>& recordDescriptor);
@@ -104,8 +92,11 @@ namespace PeterDB {
 
     protected:
         RelationManager();                                                  // Prevent construction
+
         ~RelationManager();                                                 // Prevent unwanted destruction
+
         RelationManager(const RelationManager &);                           // Prevent construction by copying
+
         RelationManager &operator=(const RelationManager &);                // Prevent assignment
 
     };

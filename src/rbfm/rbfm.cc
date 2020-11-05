@@ -35,7 +35,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                            const void *data, RID &rid) {
+                                            const void* data, RID &rid) {
         short recordLength = generateRecordLength(recordDescriptor, data);
         //std::cout << "Inside insertRecord: Record length is " << recordLength << std::endl;
 
@@ -53,9 +53,7 @@ namespace PeterDB {
             fileHandle.readPage(pageToBeWritten, pageBuffer);
             unsigned short freeBytes = getFreeBytes(pageBuffer);
             short bytesNeeded = recordLength;
-            if (!hasEmptySlot(pageBuffer)) {
-                bytesNeeded = recordLength + REC_OFF_SIZE + REC_LEN_SIZE;
-            }
+            if (!hasEmptySlot(pageBuffer)) bytesNeeded = recordLength + REC_OFF_SIZE + REC_LEN_SIZE;
 
             //std::cout << "Inside insertRecord(): (1) freeBytes: " << freeBytes << std::endl;
             //std::cout << "Inside insertRecord(): (1) bytesNeeded: " << bytesNeeded << std::endl;
@@ -69,9 +67,7 @@ namespace PeterDB {
                     //std::cout << "Inside insertRecord(): (2) freeBytes: " << freeBytes << std::endl;
                     //std::cout << "Inside insertRecord(): (2) bytesNeeded: " << bytesNeeded << std::endl;
                     bytesNeeded = recordLength;
-                    if (!hasEmptySlot(pageBuffer)) {
-                        bytesNeeded = recordLength + REC_OFF_SIZE + REC_LEN_SIZE;
-                    }
+                    if (!hasEmptySlot(pageBuffer)) bytesNeeded = recordLength + REC_OFF_SIZE + REC_LEN_SIZE;
 
                     if (freeBytes >= bytesNeeded) {
                         recordInserted = insertRecordToPage(recordBuffer, recordOffset, recordLength, pageBuffer);
@@ -84,11 +80,6 @@ namespace PeterDB {
             initNewPage(recordBuffer, recordLength, pageBuffer);
             fileHandle.appendPage(pageBuffer);
             pageToBeWritten = numPages;
-
-            ///// debug
-            //numPages = fileHandle.getNumberOfPages();
-            //std::cout << "Inside insertRecord: after initNewpage, numPages is " << numPages << std::endl;
-            ///// debug
         }
         free(recordBuffer);
 
@@ -101,7 +92,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                          const RID &rid, void *data) {
+                                          const RID &rid, void* data) {
         void* pageBuffer = malloc(PAGE_SIZE);
         short recordOffset, recordLength;
         RID newRid = rid;
@@ -124,14 +115,12 @@ namespace PeterDB {
                 int attrOffset;
                 memcpy(&attrOffset, (char*) pageBuffer + attrOffPtr, ATTR_OFF_SIZE);
                 attrOffPtr += ATTR_OFF_SIZE;
-                //std::cout << "attrOffset is " << attrOffset << std::endl;
                 if (attrOffset == -1) {
                     init += pow(2, 7-bitIndex);
                 }
                 attrCounter++;
             }
             nullIndicator[byteIndex] = init;
-            //std::cout << "inside readRecord, init is "<< (int)init<< std::endl;
         }
         //std::cout << "inside readRecord nullIndicator is "<< nullIndicator[0] << std::endl;
         memcpy((char*)data, nullIndicator, nullIndicatorSize);
@@ -142,7 +131,6 @@ namespace PeterDB {
         memcpy((char*)data + nullIndicatorSize,
                (char*)pageBuffer + recordOffset + NUM_ATTR_SIZE + attrDirSize,
                recordLength - NUM_ATTR_SIZE - attrDirSize);
-        //std::cout << "Inside readRecord, null byte size within page = " << NullByteSize << std::endl;
         free(pageBuffer);
         return 0;
     }
@@ -176,11 +164,11 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
+    RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void* data,
                                            std::ostream &out) {
         unsigned numAttrs = recordDescriptor.size();
         unsigned nullIndicatorSize = ceil((double) numAttrs/8);
-        auto * nullIndicator = (unsigned char*)malloc(nullIndicatorSize);
+        auto * nullIndicator = (unsigned char*) malloc(nullIndicatorSize);
 
         int attrCounter = 0;
         memcpy(nullIndicator, (char*) data, nullIndicatorSize);
@@ -226,7 +214,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                            const void *data, const RID &rid) {
+                                            const void* data, const RID &rid) {
         void* pageBuffer = malloc(PAGE_SIZE);
         short recordOffset, recordLength;
         RID newRid = rid;
@@ -261,9 +249,8 @@ namespace PeterDB {
                     fileHandle.readPage(pageToBeUpdated, newPageBuffer);
                     unsigned short curFreeBytes = getFreeBytes(newPageBuffer);
                     short bytesNeeded = newRecordLength;
-                    if (!hasEmptySlot(newPageBuffer)){
-                        bytesNeeded = newRecordLength + REC_OFF_SIZE + REC_LEN_SIZE;
-                    }
+                    if (!hasEmptySlot(newPageBuffer)) bytesNeeded = newRecordLength + REC_OFF_SIZE + REC_LEN_SIZE;
+
                     if (curFreeBytes >= bytesNeeded){
                         recordUpdated = insertRecordToPage(newRecordBuffer, newRecordOffset, newRecordLength, newPageBuffer);
                         break;
@@ -298,7 +285,7 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                             const RID &rid, const std::string &attributeName, void *data) {
+                                             const RID &rid, const std::string &attributeName, void* data) {
         void* pageBuffer = malloc(PAGE_SIZE);
         short recordOffset, recordLength;
         RID newRid = rid;
@@ -347,301 +334,18 @@ namespace PeterDB {
     }
 
     RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                    const std::string &conditionAttribute, const CompOp compOp, const void *value,
+                                    const std::string &conditionAttribute, const CompOp compOp, const void* value,
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
        return rbfm_ScanIterator.initialize(fileHandle, recordDescriptor, conditionAttribute,
-                                    compOp, value, attributeNames);
+                                           compOp, value, attributeNames);
     }
 
-    /*********************************************/
-    /*****    functions of scan_Iterator  *******/
-    /*********************************************/
-    RC RBFM_ScanIterator::initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                                       const std::string &conditionAttribute, const CompOp compOp, const void *value,
-                                       const std::vector<std::string> &attributeNames) {
-        this->recordDescriptor = recordDescriptor;
-        this->compOp = compOp;
-        this->value = value;
-        this->attributeNames = attributeNames;
-        this->currPageNum = 0;
-        this->currSlotNum = 0;
-
-        // initialize targetAttrIdxs
-        int numAttrs = recordDescriptor.size();
-        short attrIdx;
-        for (short targetAttrIdx = 0; targetAttrIdx < attributeNames.size(); targetAttrIdx++){
-            for (attrIdx = 0; attrIdx < numAttrs; attrIdx++){
-                if (recordDescriptor[attrIdx].name == attributeNames[targetAttrIdx]){
-                    this->targetAttrIdxs.push_back(attrIdx);
-                    break;
-                }
-            }
-            if (attrIdx == numAttrs){
-                return -1;   // attributeName not found
-            }
-        }
-
-        // initialize conditionAttrIdx and conditionType
-        for (attrIdx = 0; attrIdx < numAttrs; attrIdx++){
-            if (recordDescriptor[attrIdx].name == conditionAttribute){
-                this->conditionAttrIdx = attrIdx;
-                this->conditionType = recordDescriptor[attrIdx].type;
-                break;
-            }
-        }
-        if (attrIdx == numAttrs){
-            if (compOp == NO_OP){
-                this->conditionAttrIdx = -1;
-            }
-            else{
-                return -1;
-            }
-        }
-
-        return 0;
-    }
-
-    RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
-        void* pageBuffer = malloc(PAGE_SIZE);
-        unsigned numPages = fileHandle.getNumberOfPages();
-        int pageNum = 0;
-        short slotNum = 0;
-        short recordOffset;
-        short recordLength;
-        bool foundCondAttr = false;
-        int numAttrs = recordDescriptor.size();
-        short numSlots = -1;
-
-        for (pageNum = currPageNum; pageNum < numPages; pageNum++){
-            //std::cout<<"inside getNextRecord after enter outer for loop, currPageNum is "<<currPageNum<< ", pageNum is " << pageNum <<std::endl;
-            RC errCode = fileHandle.readPage(pageNum, pageBuffer);
-            if (errCode != 0) return errCode;
-            numSlots = getNumSlots(pageBuffer);
-
-            for (slotNum = currSlotNum; slotNum < numSlots; slotNum++) {
-                parseRecord(pageBuffer, slotNum, recordOffset, recordLength);
-
-                if (recordOffset == -1 || recordLength == -1){
-                    continue;
-                }
-                if (conditionAttrIdx == -1){
-                    foundCondAttr = true;
-                    break;
-                }
-                else{
-                    short attrOffset = 0;
-                    short attrLen = 0;
-                    RC errCode = parseAttr(attrLen, attrOffset, pageBuffer, recordOffset, conditionAttrIdx, numAttrs);
-                    if (errCode != 0) return errCode;
-                    //std::cout<<"inside getNextRecord conditionAttrIdx is "<<conditionAttrIdx<<std::endl;
-                    //std::cout<<"inside getNextRecord attrOffset is "<<attrOffset<<std::endl;
-                    //std::cout<<"inside getNextRecord attrlen is "<<attrLen<<std::endl;
-                    if (attrLen > 0){
-                        void* attrBuffer = malloc(attrLen);
-                        memcpy((char*) attrBuffer, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, attrLen);
-                        //std::cout<<"inside getNextRecord before found"<<std::endl;
-                        foundCondAttr = findCondAttr(attrBuffer, attrLen);
-                        //std::cout<<"inside getNextRecord after found"<<std::endl;
-                        free(attrBuffer);
-                        if (foundCondAttr){
-                            break;
-                        }
-                    }
-                }
-            }
-            if (foundCondAttr){
-                break;
-            }
-            if (slotNum == numSlots){
-                currSlotNum = 0;
-            }
-        }
-        //std::cout<<"inside getNextRecord after outer for loop" << std::endl;
-
-        if (foundCondAttr){
-            rid.pageNum = pageNum;
-            rid.slotNum = slotNum;
-
-            if (slotNum == numSlots){
-                currSlotNum = 0;
-                currPageNum = pageNum+1;
-            }
-            else {
-                currSlotNum = slotNum+1;
-                currPageNum = pageNum;
-            }
-
-            int newNullIndicatorSize = ceil(((double) attributeNames.size())/8);
-            //std::cout<<"inside getNextRecord inside if found, newNullIndicatorSize is "<< newNullIndicatorSize << std::endl;
-            auto * newNullIndicator = (unsigned char*)malloc(newNullIndicatorSize);
-            memset(newNullIndicator,0, newNullIndicatorSize);
-            int dataPtr = newNullIndicatorSize;
-            //std::cout<<"inside getNextRecord inside if found, dataPtr is "<< dataPtr<<std::endl;
-
-            for (short i = 0; i < attributeNames.size(); i++){
-                //std::cout<<"inside getNextRecord inside if found, attrbuteNames.size() is "<< attributeNames.size()<<std::endl;
-                //std::cout<<"inside getNextRecord inside if found, i is "<< i<<std::endl;
-                short attrLen = 0;
-                short attrOffset = 0;
-                RC errCode = parseAttr(attrLen, attrOffset, pageBuffer, recordOffset, targetAttrIdxs[i], numAttrs);
-                if (errCode != 0) return errCode;
-                //std::cout<<"inside getNextRecord inside if found, attrOffset is "<< attrOffset<<std::endl;
-                //std::cout<<"inside getNextRecord inside if found, attrLen is "<< attrLen<<std::endl;
-                if (attrLen > 0){
-                    memcpy((char*) data + dataPtr, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, attrLen);
-                    dataPtr += attrLen;
-                }
-                else{
-                    //std::cout << "inside getNextRecord inside if found, NULL value appeared " << std::endl;
-                    int byteIndex = i / 8;
-                    int bitIndex = i % 8;
-                    newNullIndicator[byteIndex] += pow(2, 7-bitIndex);
-                }
-            }
-            free(pageBuffer);
-            memcpy((char*) data, newNullIndicator, newNullIndicatorSize);
-            free(newNullIndicator);
-            return 0;
-        }
-        free(pageBuffer);
-        return RBFM_EOF;
-    }
-
-    RC RBFM_ScanIterator::parseAttr(short &attrLen, short &attrOffset, void *pageBuffer, short recordOffset, short idx, int numAttrs){
-        memcpy(&attrOffset, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + idx*ATTR_OFF_SIZE, ATTR_OFF_SIZE);
-        if (attrOffset != -1){
-            if (recordDescriptor[idx].type == TypeVarChar){
-                unsigned varCharLen = 0;
-                memcpy(&varCharLen, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, VC_LEN_SIZE);
-                attrLen = varCharLen + VC_LEN_SIZE;
-            }
-            else if (recordDescriptor[idx].type == TypeInt){
-                attrLen = INT_SIZE;
-            }
-            else {
-                attrLen = FLT_SIZE;
-            }
-        }
-        else {
-            attrLen = 0;
-        }
-        return 0;
-    }
-
-    bool RBFM_ScanIterator::findCondAttr(const void *checkAttr, short attrLen){
-        bool found = false;
-        //std::cout<<"inside findAttr before if conditionType is "<<conditionType<<std::endl;
-        if (conditionType == TypeVarChar) {
-            unsigned checkVarCharLen = attrLen - VC_LEN_SIZE;
-            char* checkVarChar = (char*) malloc(checkVarCharLen);
-            memcpy(checkVarChar, (char*) checkAttr + VC_LEN_SIZE, checkVarCharLen);
-
-            unsigned valueVarCharLen;
-            memcpy(&valueVarCharLen, (char*) value, VC_LEN_SIZE);
-            //std::cout<<"inside findAttr valueVarCharLen is "<<valueVarCharLen<<std::endl;
-            char* valueVarChar = (char*) malloc(valueVarCharLen);
-            memcpy(valueVarChar, (char*) value + VC_LEN_SIZE, valueVarCharLen);
-            switch(compOp){
-                case EQ_OP:
-                    found = std::string(valueVarChar, valueVarCharLen) == std::string(checkVarChar, checkVarCharLen);
-                    break;
-                case LT_OP:
-                    found = std::string(valueVarChar, valueVarCharLen) > std::string(checkVarChar, checkVarCharLen);
-                    break;
-                case LE_OP:
-                    found = std::string(valueVarChar, valueVarCharLen) >= std::string(checkVarChar, checkVarCharLen);
-                    break;
-                case GT_OP:
-                    found = std::string(valueVarChar, valueVarCharLen) < std::string(checkVarChar, checkVarCharLen);
-                    break;
-                case GE_OP:
-                    found = std::string(valueVarChar, valueVarCharLen) <= std::string(checkVarChar, checkVarCharLen);
-                    break;
-                case NE_OP:
-                    found = std::string(valueVarChar, valueVarCharLen) != std::string(checkVarChar, checkVarCharLen);
-                    break;
-            }
-            free(checkVarChar);
-            free(valueVarChar);
-        }
-        else if (conditionType == TypeInt){
-            int check;
-            memcpy(&check, (char*) checkAttr, INT_SIZE);
-            int data;
-            memcpy(&data, (char*) value, INT_SIZE);
-            switch(compOp){
-                case EQ_OP:
-                    found = data == check;
-                    break;
-                case LT_OP:
-                    found = data > check;
-                    break;
-                case LE_OP:
-                    found = data >= check;
-                    break;
-                case GT_OP:
-                    found = data < check;
-                    break;
-                case GE_OP:
-                    found = data <= check;
-                    break;
-                case NE_OP:
-                    found = data != check;
-                    break;
-            }
-        }
-        else if (conditionType == TypeReal){
-            std::cout<<"TypeReal"<<std::endl;
-            float check;
-            memcpy(&check, (char*)checkAttr, FLT_SIZE);
-            float data;
-            memcpy(&data, (char*)value, FLT_SIZE);
-            switch(compOp){
-                case EQ_OP:
-                    found = data == check;
-                    break;
-                case LT_OP:
-                    found = data > check;
-                    break;
-                case LE_OP:
-                    found = data >= check;
-                    break;
-                case GT_OP:
-                    found = data < check;
-                    break;
-                case GE_OP:
-                    found = data <= check;
-                    break;
-                case NE_OP:
-                    found = data != check;
-                    break;
-            }
-        }
-        return found;
-    }
-
-    unsigned short RBFM_ScanIterator::getNumSlots(void* pageBuffer) {
-        unsigned short numSlots;
-        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
-        return numSlots;
-    }
-
-    void RBFM_ScanIterator::parseRecord(void* pageBuffer, unsigned short slotNum, short& recordOffset, short& recordLength) {
-        memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), REC_OFF_SIZE);
-        memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), REC_LEN_SIZE);
-    }
-
-    RC RBFM_ScanIterator::close(){
-        //currPageNum = 0;
-        //currSlotNum = 0;
-        targetAttrIdxs.clear();
-        return fileHandle.closeFile();
-    }
     /**********************************/
     /*****    Helper functions  *******/
     /**********************************/
-    short RecordBasedFileManager::generateRecordLength(const std::vector<Attribute> &recordDescriptor, const void *data) {
+    short RecordBasedFileManager::generateRecordLength(const std::vector<Attribute> &recordDescriptor, const void* data) {
+        // Get nullIndicator
         const unsigned numAttrs = recordDescriptor.size();
         int nullIndicatorSize = ceil(((double) numAttrs)/8);
         char* nullIndicatorBuffer = new char[nullIndicatorSize];
@@ -652,23 +356,28 @@ namespace PeterDB {
         unsigned attrCounter = 0;
         for (int byteIndex = 0; byteIndex < nullIndicatorSize; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < numAttrs; bitIndex++) {
+                // Determine if attribute is null
                 bool isNull = nullIndicatorBuffer[byteIndex] & (int) 1 << (int) (7 - bitIndex);
+                // Attribute is null
                 if (isNull) {
                     recordLength += ATTR_OFF_SIZE;
                 }
                 else {
                     Attribute attr = recordDescriptor[attrCounter];
                     AttrType attrType = attr.type;
+                    // Attribute is of type varChar
                     if (attrType == TypeVarChar) {
                         unsigned varCharLen = 0;
                         memcpy(&varCharLen, attrPtr, VC_LEN_SIZE);
                         recordLength += ATTR_OFF_SIZE + VC_LEN_SIZE + varCharLen;
                         attrPtr += VC_LEN_SIZE + varCharLen;
                     }
+                    // Attribute is of type int
                     else if (attrType == TypeInt){
                         recordLength += ATTR_OFF_SIZE + INT_SIZE;
                         attrPtr += INT_SIZE;
                     }
+                        // Attribute is of type real
                     else {
                         recordLength += ATTR_OFF_SIZE + FLT_SIZE;
                         attrPtr += FLT_SIZE;
@@ -681,17 +390,16 @@ namespace PeterDB {
         return recordLength;
     }
 
-    void RecordBasedFileManager::generateRecord(const std::vector<Attribute> &recordDescriptor, const void *data,
-                                                void *recordBuffer) {
+    void RecordBasedFileManager::generateRecord(const std::vector<Attribute> &recordDescriptor, const void* data,
+                                                void* recordBuffer) {
         // Write numAttrs
         const unsigned numAttrs = recordDescriptor.size();
         memcpy(recordBuffer, &numAttrs, NUM_ATTR_SIZE);
 
-        // Get null info bytes
+        // Get nullIndicator
         unsigned nullIndicatorSize = ceil(((double) numAttrs)/8);
         char* nullIndicatorBuffer = new char[nullIndicatorSize];
         memcpy(nullIndicatorBuffer, data, nullIndicatorSize);
-        //std::cout << "Inside generateRecord, nullInfoByte within page = " << nullIndicatorBuffer<< std::endl;
 
         // Create required pointers
         int offsetWritePtr = NUM_ATTR_SIZE;
@@ -704,7 +412,6 @@ namespace PeterDB {
             for (int bitIndex = 0; bitIndex < 8 && attrCounter < numAttrs; bitIndex++) {
                 // Determine if attribute is null
                 bool attrIsNull = nullIndicatorBuffer[byteIndex] & (int) 1 << (int) (7 - bitIndex);
-                //std::cout << "The " << attrCounter << "th attr is null? " << attrIsNull << std::endl;
                 if (!attrIsNull) {
                     Attribute attr = recordDescriptor[attrCounter];
                     AttrType attrType = attr.type;
@@ -714,7 +421,6 @@ namespace PeterDB {
                         // get varChar length
                         unsigned varCharLen = 0;
                         memcpy(&varCharLen, (char*) data + attrReadPtr, VC_LEN_SIZE);
-                        //std::cout <<"inside generateRecord varCharLen is "<< varCharLen <<std::endl;
                         attrReadPtr += VC_LEN_SIZE;
 
                         // write offset info to offsetDir
@@ -792,9 +498,7 @@ namespace PeterDB {
         short currRecordOffset;
         for (unsigned short slotNum = 0; slotNum < numSlots; slotNum++) {
             currRecordOffset = getRecordOffset(pageBuffer, slotNum);
-            if (currRecordOffset == -1) {
-                return true;
-            }
+            if (currRecordOffset == -1) return true;
         }
         return false;
     }
@@ -810,7 +514,6 @@ namespace PeterDB {
 
     bool RecordBasedFileManager::insertRecordToPage(void* recordBuffer, short& recordOffset, short recordLength, void* pageBuffer) {
         recordOffset = getInsertStartOffset(pageBuffer);
-        //std::cout << "Inside insertRecordToPage: insertStartOffset is " << recordOffset << std::endl;
         memcpy((char*) pageBuffer+recordOffset, recordBuffer, recordLength);
 
         // set new freeBytes
@@ -861,7 +564,7 @@ namespace PeterDB {
                 // Update record offset in slot
                 setRecordOffset(pageBuffer, slotNum, currRecordOffset+distance);
 
-                // Accumulate the length of  records to be shifted
+                // Accumulate the length of records to be shifted
                 currRecordLength = getRecordLength(pageBuffer, slotNum);
                 if (currRecordLength == -1) {
                     currRecordLength = PTR_PN_SIZE + PTR_SN_SIZE;
@@ -872,37 +575,30 @@ namespace PeterDB {
         memcpy((char*) pageBuffer+recordOffset+recordLength+distance, (char*) pageBuffer+recordOffset+recordLength, sizeToBeShifted);
     }
 
-    RC RecordBasedFileManager::checkAndFindRecord(FileHandle &fileHandle, void *pageBuffer,
+    RC RecordBasedFileManager::checkAndFindRecord(FileHandle &fileHandle, void* pageBuffer,
                                                   short &recordOffset, short &recordLength, RID &rid) {
+        // validate pageNum
         unsigned numPages = fileHandle.getNumberOfPages();
-        //std::cout<<"inside checkAnd FindRecord rid.pageNum is "<<rid.pageNum<<std::endl;
-        //std::cout<<"inside checkAnd FindRecord numPages is "<<numPages<<std::endl;
-        // pageNum is not valid
-        if (rid.pageNum >= numPages){
-            return -1;
-        }
+        //std::cout<<"inside checkAndFindRecord rid.pageNum is "<<rid.pageNum<<std::endl;
+        //std::cout<<"inside checkAndFindRecord numPages is "<<numPages<<std::endl;
+        if (rid.pageNum >= numPages) return -1;
 
         fileHandle.readPage(rid.pageNum, pageBuffer);
 
-        // slotNum is not valid
+        // validate slotNum
         unsigned short numSlots = getNumSlots(pageBuffer);
-        //std::cout<<"inside checkAnd FindRecord rid.slotNum is "<<rid.slotNum<<std::endl;
-        //std::cout<<"inside checkAnd FindRecord numSlots is "<<numSlots<<std::endl;
-        if (rid.slotNum >= numSlots){
-            //free(pageBuffer);
-            return -1;
-        }
+        //std::cout<<"inside checkAndFindRecord rid.slotNum is "<<rid.slotNum<<std::endl;
+        //std::cout<<"inside checkAndFindRecord numSlots is "<<numSlots<<std::endl;
+        if (rid.slotNum >= numSlots) return -1;
 
         return findRecord(fileHandle, pageBuffer,recordOffset, recordLength, rid);
     }
 
-    RC RecordBasedFileManager::findRecord(FileHandle &fileHandle, void *pageBuffer,
+    RC RecordBasedFileManager::findRecord(FileHandle &fileHandle, void* pageBuffer,
                                             short &recordOffset, short &recordLength, RID &rid) {
         // get record offset. If is -1, record is already deleted.
         recordOffset = getRecordOffset(pageBuffer, rid.slotNum);
-        if (recordOffset == -1){
-            return -1;
-        }
+        if (recordOffset == -1) return -1;
 
         // get record length. If is -1, record is on another page
         recordLength = getRecordLength(pageBuffer, rid.slotNum);
@@ -917,9 +613,7 @@ namespace PeterDB {
 
             // get record offset. If is -1, record is already deleted.
             recordOffset = getRecordOffset(pageBuffer, newSlotNum);
-            if (recordOffset == -1){
-                return -1;
-            }
+            if (recordOffset == -1) return -1;
             recordLength = getRecordLength(pageBuffer, newSlotNum);
         }
 
@@ -927,10 +621,6 @@ namespace PeterDB {
         rid.slotNum = newSlotNum;
         return 0;
     }
-
-
-
-
 
     /*********************************************/
     /*****    Getter and Setter functions  *******/
@@ -973,6 +663,282 @@ namespace PeterDB {
 
     void RecordBasedFileManager::setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset) {
         memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), &recordOffset, REC_OFF_SIZE);
+    }
+
+    /*************************************************/
+    /*****    functions of rbfm_Scan_Iterator  *******/
+    /*************************************************/
+    RC RBFM_ScanIterator::initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                                     const std::string &conditionAttribute, const CompOp compOp, const void* value,
+                                     const std::vector<std::string> &attributeNames) {
+        this->recordDescriptor = recordDescriptor;
+        this->compOp = compOp;
+
+        if (value == NULL || value == nullptr) this->value = nullptr;
+        else this->value = value;
+
+        this->attributeNames = attributeNames;
+        this->currPageNum = 0;
+        this->currSlotNum = 0;
+
+        // initialize targetAttrIdxs
+        int numAttrs = recordDescriptor.size();
+        short attrIdx;
+        for (short targetAttrIdx = 0; targetAttrIdx < attributeNames.size(); targetAttrIdx++){
+            for (attrIdx = 0; attrIdx < numAttrs; attrIdx++){
+                if (recordDescriptor[attrIdx].name == attributeNames[targetAttrIdx]){
+                    this->targetAttrIdxs.push_back(attrIdx);
+                    break;
+                }
+            }
+            if (attrIdx == numAttrs) return -1;   // attributeName not found
+        }
+
+        // initialize conditionAttrIdx and conditionType
+        for (attrIdx = 0; attrIdx < numAttrs; attrIdx++){
+            if (recordDescriptor[attrIdx].name == conditionAttribute){
+                this->conditionAttrIdx = attrIdx;
+                this->conditionType = recordDescriptor[attrIdx].type;
+                break;
+            }
+        }
+        if (attrIdx == numAttrs){
+            if (compOp == NO_OP) this->conditionAttrIdx = -1;
+            else return -1;
+        }
+
+        return 0;
+    }
+
+    RC RBFM_ScanIterator::getNextRecord(RID &rid, void* data) {
+        void* pageBuffer = malloc(PAGE_SIZE);
+        unsigned numPages = fileHandle.getNumberOfPages();
+        int pageNum = 0;
+        short slotNum = 0;
+        short recordOffset;
+        short recordLength;
+        bool foundCondAttr = false;
+        int numAttrs = recordDescriptor.size();
+        short numSlots = -1;
+
+        for (pageNum = currPageNum; pageNum < numPages; pageNum++){
+            //std::cout<<"inside getNextRecord after enter outer for loop, currPageNum is "<<currPageNum<< ", pageNum is " << pageNum <<std::endl;
+            RC errCode = fileHandle.readPage(pageNum, pageBuffer);
+            if (errCode != 0) return errCode;
+            numSlots = getNumSlots(pageBuffer);
+
+            for (slotNum = currSlotNum; slotNum < numSlots; slotNum++) {
+                parseRecord(pageBuffer, slotNum, recordOffset, recordLength);
+
+                if (recordOffset == -1 || recordLength == -1) continue;
+                if (conditionAttrIdx == -1){
+                    foundCondAttr = true;
+                    break;
+                }
+                else{
+                    short attrOffset = 0;
+                    short attrLen = 0;
+                    RC errCode = parseAttr(attrLen, attrOffset, pageBuffer, recordOffset, conditionAttrIdx, numAttrs);
+                    if (errCode != 0) return errCode;
+
+                    // Conditional attribute in current record is not null
+                    if (attrOffset != -1){
+                        void* attrBuffer = malloc(attrLen);
+                        memcpy((char*) attrBuffer, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, attrLen);
+                        foundCondAttr = findCondAttr(attrBuffer, attrLen);
+                        free(attrBuffer);
+                    }
+                    // Conditional attribute in current record is null
+                    else {
+                        foundCondAttr = value == nullptr;
+                    }
+                    if (foundCondAttr) break;
+                }
+            }
+            if (foundCondAttr) break;
+
+            if (slotNum == numSlots) currSlotNum = 0;
+        }
+
+        if (foundCondAttr){
+            rid.pageNum = pageNum;
+            rid.slotNum = slotNum;
+
+            if (slotNum == numSlots){
+                currSlotNum = 0;
+                currPageNum = pageNum+1;
+            }
+            else {
+                currSlotNum = slotNum+1;
+                currPageNum = pageNum;
+            }
+
+            int newNullIndicatorSize = ceil(((double) attributeNames.size())/8);
+            //std::cout<<"inside getNextRecord inside if found, newNullIndicatorSize is "<< newNullIndicatorSize << std::endl;
+            auto * newNullIndicator = (unsigned char*)malloc(newNullIndicatorSize);
+            memset(newNullIndicator,0, newNullIndicatorSize);
+            int dataPtr = newNullIndicatorSize;
+            //std::cout<<"inside getNextRecord inside if found, dataPtr is "<< dataPtr<<std::endl;
+
+            for (short i = 0; i < attributeNames.size(); i++){
+                short attrLen = 0;
+                short attrOffset = 0;
+                RC errCode = parseAttr(attrLen, attrOffset, pageBuffer, recordOffset, targetAttrIdxs[i], numAttrs);
+                if (errCode != 0) return errCode;
+
+                // Target attribute in current record is not null
+                if (attrOffset != -1){
+                    memcpy((char*) data + dataPtr, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, attrLen);
+                    dataPtr += attrLen;
+                }
+                // Target attribute in current record is null
+                else{
+                    int byteIndex = i / 8;
+                    int bitIndex = i % 8;
+                    newNullIndicator[byteIndex] += pow(2, 7-bitIndex);
+                }
+            }
+            free(pageBuffer);
+            memcpy((char*) data, newNullIndicator, newNullIndicatorSize);
+            free(newNullIndicator);
+            return 0;
+        }
+        free(pageBuffer);
+        return RBFM_EOF;
+    }
+
+    RC RBFM_ScanIterator::parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs){
+        memcpy(&attrOffset, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + idx*ATTR_OFF_SIZE, ATTR_OFF_SIZE);
+        // Attribute is not null
+        if (attrOffset != -1) {
+            // Attribute is of type varChar
+            if (recordDescriptor[idx].type == TypeVarChar){
+                unsigned varCharLen = 0;
+                memcpy(&varCharLen, (char*) pageBuffer + recordOffset + NUM_ATTR_SIZE + numAttrs*ATTR_OFF_SIZE + attrOffset, VC_LEN_SIZE);
+                attrLen = varCharLen + VC_LEN_SIZE;
+            }
+            // Attribute is of type int
+            else if (recordDescriptor[idx].type == TypeInt){
+                attrLen = INT_SIZE;
+            }
+            // Attribute is of type real
+            else {
+                attrLen = FLT_SIZE;
+            }
+        }
+        // Attribute is null
+        else {
+            attrLen = 0;
+        }
+        return 0;
+    }
+
+    bool RBFM_ScanIterator::findCondAttr(const void* checkAttr, short attrLen){
+        bool found = false;
+        // Attribute is of type varChar
+        if (conditionType == TypeVarChar) {
+            unsigned checkVarCharLen = attrLen - VC_LEN_SIZE;
+            char* checkVarChar = (char*) malloc(checkVarCharLen);
+            memcpy(checkVarChar, (char*) checkAttr + VC_LEN_SIZE, checkVarCharLen);
+
+            unsigned valueVarCharLen;
+            memcpy(&valueVarCharLen, (char*) value, VC_LEN_SIZE);
+            char* valueVarChar = (char*) malloc(valueVarCharLen);
+            memcpy(valueVarChar, (char*) value + VC_LEN_SIZE, valueVarCharLen);
+            switch(compOp) {
+                case EQ_OP:
+                    found = std::string(valueVarChar, valueVarCharLen) == std::string(checkVarChar, checkVarCharLen);
+                    break;
+                case LT_OP:
+                    found = std::string(valueVarChar, valueVarCharLen) > std::string(checkVarChar, checkVarCharLen);
+                    break;
+                case LE_OP:
+                    found = std::string(valueVarChar, valueVarCharLen) >= std::string(checkVarChar, checkVarCharLen);
+                    break;
+                case GT_OP:
+                    found = std::string(valueVarChar, valueVarCharLen) < std::string(checkVarChar, checkVarCharLen);
+                    break;
+                case GE_OP:
+                    found = std::string(valueVarChar, valueVarCharLen) <= std::string(checkVarChar, checkVarCharLen);
+                    break;
+                case NE_OP:
+                    found = std::string(valueVarChar, valueVarCharLen) != std::string(checkVarChar, checkVarCharLen);
+                    break;
+            }
+            free(checkVarChar);
+            free(valueVarChar);
+        }
+        // Attribute is of type int
+        else if (conditionType == TypeInt) {
+            int check;
+            memcpy(&check, (char*) checkAttr, INT_SIZE);
+            int data;
+            memcpy(&data, (char*) value, INT_SIZE);
+            switch(compOp) {
+                case EQ_OP:
+                    found = data == check;
+                    break;
+                case LT_OP:
+                    found = data > check;
+                    break;
+                case LE_OP:
+                    found = data >= check;
+                    break;
+                case GT_OP:
+                    found = data < check;
+                    break;
+                case GE_OP:
+                    found = data <= check;
+                    break;
+                case NE_OP:
+                    found = data != check;
+                    break;
+            }
+        }
+        // Attribute is of type real
+        else {
+            float check;
+            memcpy(&check, (char*)checkAttr, FLT_SIZE);
+            float data;
+            memcpy(&data, (char*)value, FLT_SIZE);
+            switch(compOp) {
+                case EQ_OP:
+                    found = data == check;
+                    break;
+                case LT_OP:
+                    found = data > check;
+                    break;
+                case LE_OP:
+                    found = data >= check;
+                    break;
+                case GT_OP:
+                    found = data < check;
+                    break;
+                case GE_OP:
+                    found = data <= check;
+                    break;
+                case NE_OP:
+                    found = data != check;
+                    break;
+            }
+        }
+        return found;
+    }
+
+    unsigned short RBFM_ScanIterator::getNumSlots(void* pageBuffer) {
+        unsigned short numSlots;
+        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
+        return numSlots;
+    }
+
+    void RBFM_ScanIterator::parseRecord(void* pageBuffer, unsigned short slotNum, short& recordOffset, short& recordLength) {
+        memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), REC_OFF_SIZE);
+        memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), REC_LEN_SIZE);
+    }
+
+    RC RBFM_ScanIterator::close(){
+        targetAttrIdxs.clear();
+        return fileHandle.closeFile();
     }
 
 } // namespace PeterDB
