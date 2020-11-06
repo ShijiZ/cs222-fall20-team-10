@@ -82,7 +82,7 @@ Note that we always assign tableId = 1 to Tables table and tableId = 2 to Column
   recordsSection | freeBytesSection | slotsDirectory | numSlots | FreeBytes
   - recordsSection: Each record is stored from left to right.
   - freeBytesSection: Free bytes in the page.
-  - slotsDirectory: Two unsigned short for each record stored from right to left. (details explained below)
+  - slotsDirectory: Two shorts for each record stored from right to left. (details explained below)
   - numSlots: An unsigned short value storing the total number of slots stored in the page.
   - FreeBytes: An unsigned short value storing the total free bytes in the page.
 
@@ -90,10 +90,10 @@ Note that we always assign tableId = 1 to Tables table and tableId = 2 to Column
 
   Each slot for corresponding record has the following format:
     
-  offset | length
+  recordOffset | recordLength
       
-  - offset: An unsigned short storing the beginning (offset) of corresponding record relative to the beginning of the page. If the record has been deleted, we set it to be -1.
-  - length: An unsigned short storing the length of corresponding record. If the record have been moved elsewhere, we set it to be -1.
+  - recordOffset: A short storing the beginning (offset) of corresponding record relative to the beginning of the page. If the record has been deleted, we set it to be -1.
+  - recordLength: A short storing the length of corresponding record. If the record have been moved to another page, we set it to be -1.
   
 
 ### 5. Page Management (in case you have changed from P1, please re-enter here)
@@ -113,35 +113,37 @@ Note that we always assign tableId = 1 to Tables table and tableId = 2 to Column
 ### 6. Describe the following operation logic.
 - Delete a record
 
-1. Find the actual location of the record and get its record_offset and record_length.
+1. Find the actual location (pageNum and slotNum) of the record and get its recordOffset and recordLength.
 
-2. Find all the records in the page whose record offset is greater than record_offset, shift all these records left by record_length. 
+2. Find all the records in this page whose record offset is greater than recordOffset, shift all these records left by recordLength. 
 
-3. In the slotsDirectory, set the record offset of all the shifted records to be their original offsets minus record_length.
+3. In the slotsDirectory, set the record offset of all the shifted records to be their original offsets minus recordLength.
 
-4. In the slotsDirectory, set the record offset of the deleted record to be -1. 
+4. In the slotsDirectory, set recordOffset of the deleted record to be -1. 
 
 - Update a record
 
-1. Find the actual location of the record and get its record_offset and record_length. Get the new_length of the new record.
+1. Find the actual location (pageNum and slotNum) of the record and get its recordOffset and recordLength. Get the newRecordLength of the record.
 
-2. If there are enough free space for the new record,
+2. If there are enough free space for this record in this page,
 
-   - Find all the records in the page whose record offset is greater than record_offset, shift all these records by distance = new_length - record_length ( distance > 0 means shift right, < 0 means shift left ).
-   - Put the new record at the location of the original record.
+   - Find all the records in this page whose record offset is greater than recordOffset, and shift all these records by distance = newRecordLength - recordLength ( distance > 0 means shift right, < 0 means shift left ).
    - In the slotsDirectory, set the record offset of all the shifted records to be their original offsets plus distance.
-   - In the slotsDirectory, set the record length of the updated record to be new_length.
+   - Put the updated record at the original location.
+   - In the slotsDirectory, set the record length of the updated record to be newRecordLength.
    
-   If there are not enough free space for the new record in the page,
+   If there are not enough free space for this record in the page,
    
-   - Insert the new record to a new page.
-   - Update the original record to be a 6-byte pointer (pageNum, slotNum) which points to the location of the new record. 
+   - Insert this record to a new page using similar logic of insertRecord().
+   - Find all the records in the original page whose record offset is greater than recordOffset, and shift all these records by distance = 6 - recordLength (a negative number, thus to the left).
+   - In the slotsDirectory, set the record offset of all the shifted records to be their original offsets plus distance.
+   - At the original location of the updated record, put a 6-byte pointer (pageNum, slotNum) which points to its new location (pageNum and slotNum). 
    - In the slotsDirectory of the original page, set the record length of the 6-byte pointer to be -1.
    
 
 - Scan on normal records
 
-  Starting from current page number and slot number, get the corresponding record, check if it meets the condition. If it meets the condition, output the desired attributes together with a new-generated null indicator. 
+  Starting from current page number and slot number, get the corresponding record, and check if it meets the condition. If it does, output the desired attributes with a null indicator. 
  
 - Scan on deleted records
 
@@ -149,7 +151,7 @@ Note that we always assign tableId = 1 to Tables table and tableId = 2 to Column
 
 - Scan on updated records
 
-  If the record is updated and moved to another place, just skip it and continue scanning the next record.
+  If the record is still on the original location (pageNum and slotNum), treat it as a normal record. If it has been moved to another page, just skip it on the current page and continue scanning the next record.
 
 ### 7. Implementation Detail
 - Other implementation details goes here.

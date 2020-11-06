@@ -269,9 +269,9 @@ namespace PeterDB {
             free(newPageBuffer);
 
             // set the original page (pageBuffer)
+            shiftRecord(pageBuffer, recordOffset, recordLength, PTR_PN_SIZE+PTR_SN_SIZE-recordLength);
             memcpy((char*) pageBuffer+recordOffset, &newPageNum, PTR_PN_SIZE);
             memcpy((char*) pageBuffer+recordOffset+PTR_PN_SIZE, &newSlotNum, PTR_SN_SIZE);
-            shiftRecord(pageBuffer, recordOffset, recordLength, PTR_PN_SIZE+PTR_SN_SIZE-recordLength);
             newFreeBytes = freeBytes-(PTR_PN_SIZE+PTR_SN_SIZE-recordLength);
             setFreeBytes(pageBuffer, newFreeBytes);
 
@@ -750,7 +750,9 @@ namespace PeterDB {
                     }
                     // Conditional attribute in current record is null
                     else {
-                        foundCondAttr = value == nullptr;
+                        if (compOp == EQ_OP) foundCondAttr = value == nullptr;
+                        else if (compOp == NE_OP) foundCondAttr = value != nullptr;
+                        else return -1;
                     }
                     if (foundCondAttr) break;
                 }
