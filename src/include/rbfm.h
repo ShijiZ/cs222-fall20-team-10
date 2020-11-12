@@ -231,9 +231,9 @@ namespace PeterDB {
 
         ~RecordBasedFileManager();                                                  // Prevent unwanted destruction
 
-        RecordBasedFileManager(const RecordBasedFileManager &);                     // Prevent construction by copying
+        RecordBasedFileManager(const RecordBasedFileManager &) = default;           // Prevent construction by copying
 
-        RecordBasedFileManager &operator=(const RecordBasedFileManager &);          // Prevent assignment
+        RecordBasedFileManager &operator=(const RecordBasedFileManager &) = default; // Prevent assignment
 
     };
 
