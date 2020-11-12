@@ -1,6 +1,8 @@
 #ifndef _ix_h_
 #define _ix_h_
 
+#define IS_LEAF_SIZE sizeof(bool)
+
 #include <vector>
 #include <string>
 
@@ -55,6 +57,10 @@ namespace PeterDB {
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
+        RC insertEntry(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
+                       AttrType attrType, const void *key, const RID &rid, unsigned& newChildPageNum);
+
+        void shiftKey(void* pageBuffer, short keyOffset, short sizeToBeShifted, short distance);
 
     protected:
         IndexManager();                                                             // Prevent construction
