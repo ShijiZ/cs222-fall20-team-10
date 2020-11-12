@@ -13,11 +13,6 @@ namespace PeterDB {
 
     RecordBasedFileManager::~RecordBasedFileManager() = default;
 
-    RecordBasedFileManager::RecordBasedFileManager(const RecordBasedFileManager &) = default;
-
-    RecordBasedFileManager &RecordBasedFileManager::operator=(const RecordBasedFileManager &) = default;
-
-
     RC RecordBasedFileManager::createFile(const std::string &fileName) {
         return pfm->createFile(fileName);
     }

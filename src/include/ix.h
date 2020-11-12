@@ -49,10 +49,20 @@ namespace PeterDB {
         // Print the B+ tree in pre-order (in a JSON record format)
         RC printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const;
 
+    private:
+        PagedFileManager* pfm;
+
+        /**********************************/
+        /*****    Helper functions  *******/
+        /**********************************/
+
     protected:
-        IndexManager() = default;                                                   // Prevent construction
-        ~IndexManager() = default;                                                  // Prevent unwanted destruction
+        IndexManager();                                                             // Prevent construction
+
+        ~IndexManager();                                                            // Prevent unwanted destruction
+
         IndexManager(const IndexManager &) = default;                               // Prevent construction by copying
+
         IndexManager &operator=(const IndexManager &) = default;                    // Prevent assignment
 
     };
@@ -80,6 +90,8 @@ namespace PeterDB {
         unsigned ixReadPageCounter;
         unsigned ixWritePageCounter;
         unsigned ixAppendPageCounter;
+
+        FileHandle fileHandle;
 
         // Constructor
         IXFileHandle();

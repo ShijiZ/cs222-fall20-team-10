@@ -6,20 +6,27 @@ namespace PeterDB {
         return _index_manager;
     }
 
+    IndexManager::IndexManager() {
+        PagedFileManager& pfm = PagedFileManager::instance();
+        this->pfm = &pfm;
+    }
+
+    IndexManager::~IndexManager() = default;
+
     RC IndexManager::createFile(const std::string &fileName) {
-        return -1;
+        return pfm->createFile(fileName);
     }
 
     RC IndexManager::destroyFile(const std::string &fileName) {
-        return -1;
+        return pfm->destroyFile(fileName);
     }
 
     RC IndexManager::openFile(const std::string &fileName, IXFileHandle &ixFileHandle) {
-        return -1;
+        return pfm->openFile(fileName, ixFileHandle.fileHandle);
     }
 
     RC IndexManager::closeFile(IXFileHandle &ixFileHandle) {
-        return -1;
+        return pfm->closeFile(ixFileHandle.fileHandle);
     }
 
     RC
@@ -68,9 +75,14 @@ namespace PeterDB {
     IXFileHandle::~IXFileHandle() {
     }
 
-    RC
-    IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
-        return -1;
+    RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
+        RC errCode = fileHandle.collectCounterValues(readPageCount, writePageCount, appendPageCount);
+        if (errCode != 0) return errCode;
+
+        ixReadPageCounter = readPageCount;
+        ixWritePageCounter = writePageCount;
+        ixAppendPageCounter = appendPageCount;
+        return 0;
     }
 
 } // namespace PeterDB
