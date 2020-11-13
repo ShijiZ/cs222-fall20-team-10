@@ -2,6 +2,8 @@
 #define _ix_h_
 
 #define IS_LEAF_SIZE sizeof(bool)
+#define NXT_PN_SIZE sizeof(int)
+#define ORDER 2043
 
 #include <vector>
 #include <string>
@@ -57,10 +59,46 @@ namespace PeterDB {
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
-        RC insertEntry(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
-                       AttrType attrType, const void *key, const RID &rid, unsigned& newChildPageNum);
+        RC insertEntry1(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
+                       AttrType attrType, const void *key, const RID &rid, void* newChildEntry, unsigned rootPageNum);
 
-        void shiftKey(void* pageBuffer, short keyOffset, short sizeToBeShifted, short distance);
+        RC insertEntry2(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
+                        unsigned short bytesNeeded, unsigned short freeBytes, unsigned short numKeys,
+                        AttrType attrType, bool isLeaf);
+
+        void shiftKey(void* pageBuffer, short keyOffset, short sizeToBeShifted, unsigned short distance);
+
+        RC insertEntry3(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
+                        short currKeyPtr, short sizeToBeShifted, unsigned short bytesNeeded, bool isLeaf);
+
+
+        RC findPageNumToBeHandled(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
+                                  unsigned short numKeys, AttrType attrType, int& pageNumToBeInserted);
+
+        RC splitNode(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned keyLength,
+                     AttrType attrType, const void *key, const RID &rid, void* newChildEntry,
+                     unsigned pageNum, unsigned short bytesNeeded,unsigned short freeBytes,
+                     unsigned short numKeys, bool isLeaf, bool isRoot);
+
+        RC initLeafNode(void* pageBuffer, void* entryPtr, unsigned short bytesNeeded,
+                        int numKeys, int nextPageNum);
+
+        RC initNonLeafNode(void* pageBuffer, void* entryPtr, unsigned short bytesNeeded, int numKeys);
+
+        /*********************************************/
+        /*****    Getter and Setter functions  *******/
+        /*********************************************/
+        unsigned short getNumKeys(void* pageBuffer);
+
+        unsigned short getFreeBytes(void* pageBuffer);
+
+        int getNextPageNum(void* pageBuffer);
+
+        void setNumKeys(void* pageBuffer, unsigned short numKeys);
+
+        void setFreeBytes(void* pageBuffer, unsigned short freeBytes);
+
+        void setNextPageNum(void* pageBuffer, int nextPageNum);
 
     protected:
         IndexManager();                                                             // Prevent construction
