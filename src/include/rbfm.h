@@ -9,6 +9,7 @@
 #define VC_LEN_SIZE sizeof(unsigned)
 #define INT_SIZE sizeof(int)
 #define FLT_SIZE sizeof(float)
+#define INT_OR_FLT_SIZE 4
 
 #define PTR_PN_SIZE sizeof(unsigned)
 #define PTR_SN_SIZE sizeof(short)
