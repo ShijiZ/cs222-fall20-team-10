@@ -116,7 +116,7 @@ namespace PeterDB {
             fileToBeHandled->seekg((1+pageNum)*PAGE_SIZE);
             fileToBeHandled->read((char*) data , PAGE_SIZE);
             readPageCounter++;
-            writeHiddenPage();
+            //writeHiddenPage();
             return 0;
         }
         else {
@@ -129,7 +129,7 @@ namespace PeterDB {
             fileToBeHandled->seekp((1+pageNum)*PAGE_SIZE);
             fileToBeHandled->write((char*) data, PAGE_SIZE);
             writePageCounter++;
-            writeHiddenPage();
+            //writeHiddenPage();
             return 0;
         }
         else{
@@ -142,7 +142,7 @@ namespace PeterDB {
         fileToBeHandled->write((char*) data, PAGE_SIZE);
         appendPageCounter++;
         numPages++;
-        writeHiddenPage();
+        //writeHiddenPage();
         return 0;
     }
 
