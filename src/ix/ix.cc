@@ -14,20 +14,7 @@ namespace PeterDB {
     IndexManager::~IndexManager() = default;
 
     RC IndexManager::createFile(const std::string &fileName) {
-        RC errCode = pfm->createFile(fileName);
-        if (errCode != 0) return errCode;
-
-        FileHandle fileHandle;
-        errCode = pfm->openFile(fileName, fileHandle);
-        if (errCode != 0) return errCode;
-
-        void* metaDataPage = malloc(PAGE_SIZE);
-        unsigned rootPageNum = 0;
-        memcpy((char*) metaDataPage, &rootPageNum, sizeof(unsigned));
-        fileHandle.appendPage(metaDataPage);
-        free(metaDataPage);
-
-        return pfm->closeFile(fileHandle);
+        return pfm->createFile(fileName);
     }
 
     RC IndexManager::destroyFile(const std::string &fileName) {
@@ -51,36 +38,33 @@ namespace PeterDB {
             memcpy(&keyLength, key, VC_LEN_SIZE);
             keyLength += VC_LEN_SIZE;
         }
-        else if (attrType == TypeInt){
-            keyLength = INT_SIZE;
-        }
         else {
-            keyLength = FLT_SIZE;
+            keyLength = INT_OR_FLT_SIZE;
         }
 
         // B+ tree has 0 node
-        if (ixFileHandle.fileHandle.getNumberOfPages() == 1) {
+        if (ixFileHandle.fileHandle.getNumberOfPages() == 0) {
+            // set up meta data page
+            void* metaDataPageBuffer = malloc(PAGE_SIZE);
+            unsigned rootPageNum = 1;
+            memcpy((char*) metaDataPageBuffer, &rootPageNum, sizeof(unsigned));
+            RC errCode = ixFileHandle.fileHandle.appendPage(metaDataPageBuffer);
+            if (errCode != 0) return errCode;
+            free(metaDataPageBuffer);
+
             unsigned short bytesNeeded = keyLength + PTR_PN_SIZE + PTR_SN_SIZE;
             void* firstEntry = malloc(bytesNeeded);
             memcpy((char*) firstEntry, (char*) key, keyLength);
             memcpy((char*) firstEntry+keyLength, &rid.pageNum, PTR_PN_SIZE);
             memcpy((char*) firstEntry+keyLength+PTR_PN_SIZE, &rid.slotNum, PTR_SN_SIZE);
 
-            RC errCode = initLeafNode(pageBuffer, firstEntry, bytesNeeded, 1, -1);
+            errCode = initLeafNode(pageBuffer, firstEntry, bytesNeeded, 1, -1);
             if (errCode != 0) return errCode;
 
             free(firstEntry);
             errCode = ixFileHandle.fileHandle.appendPage(pageBuffer);
             if (errCode != 0) return errCode;
 
-            // update meta data page
-            int rootPageNum = 1;
-            errCode = ixFileHandle.fileHandle.readPage(0, pageBuffer);
-            if (errCode != 0) return errCode;
-            memcpy((char*) pageBuffer, &rootPageNum, sizeof(unsigned));
-
-            errCode = ixFileHandle.fileHandle.writePage(0, pageBuffer);
-            if (errCode != 0) return errCode;
             return 0;
         }
         // B+ tree has at least 1 node
@@ -448,6 +432,7 @@ namespace PeterDB {
 
                 if (sizeToBeCopied < ORDER) {
                     unsigned short leftSiblingFreeBytes;
+                    memcpy((char*)pageBuffer, (char*)hugePageBuffer, PAGE_SIZE);
                     if (isLeaf) {
                         setNumKeys(pageBuffer, keyIdx);
                         leftSiblingFreeBytes = PAGE_SIZE-currKeyPtr-F_SIZE-N_SIZE-NXT_PN_SIZE;
@@ -507,8 +492,8 @@ namespace PeterDB {
                                    sizeToBeCopied, numKeys+1-keyIdx, leftSiblingNxtPageNum);
         }
         else {
-            errCode = initNonLeafNode(rightSiblingPageBuffer, (char*) hugePageBuffer+currKeyPtr-PTR_PN_SIZE,
-                                      sizeToBeCopied+PTR_PN_SIZE, numKeys+1-keyIdx);
+            errCode = initNonLeafNode(rightSiblingPageBuffer, (char*) hugePageBuffer+currKeyPtr+sizeToBePassed-PTR_PN_SIZE,   //////
+                                      sizeToBeCopied+PTR_PN_SIZE-sizeToBePassed, numKeys-keyIdx);   ////////
         }
         if(errCode != 0) return errCode;
         free(hugePageBuffer);
@@ -522,6 +507,14 @@ namespace PeterDB {
             memcpy((char*) newChildEntry+sizeToBePassed, &rightSiblingPageNum, PTR_PN_SIZE);
             setNextPageNum(pageBuffer, rightSiblingPageNum);
         }
+
+        else{
+            int rightSiblingPageNum = ixFileHandle.fileHandle.getNumberOfPages()-1;
+            memcpy((char*) newChildEntry+sizeToBePassed-PTR_PN_SIZE, &rightSiblingPageNum, PTR_PN_SIZE);
+            setNextPageNum(pageBuffer, rightSiblingPageNum);
+        }
+
+
 
         errCode = ixFileHandle.fileHandle.writePage(pageNum, pageBuffer);
         if(errCode != 0) return errCode;
