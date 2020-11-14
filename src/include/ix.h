@@ -1,6 +1,7 @@
 #ifndef _ix_h_
 #define _ix_h_
 
+#define ROOT_PAGE_NUM_SIZE sizeof(unsigned)
 #define IS_LEAF_SIZE sizeof(bool)
 #define NXT_PN_SIZE sizeof(int)
 #define ORDER 2043
@@ -59,6 +60,8 @@ namespace PeterDB {
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
+        unsigned getRootPageNum(IXFileHandle &ixFileHandle) const;
+
         RC insertEntry1(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
                        AttrType attrType, const void *key, const RID &rid, void* newChildEntry, unsigned rootPageNum);
 
@@ -85,14 +88,21 @@ namespace PeterDB {
 
         RC initNonLeafNode(void* pageBuffer, void* entryPtr, unsigned short bytesNeeded, int numKeys);
 
+        RC printNode(IXFileHandle &ixFileHandle, AttrType attrType, unsigned pageNum,
+                     int indent, std::ostream &out) const;
+
         /*********************************************/
         /*****    Getter and Setter functions  *******/
         /*********************************************/
-        unsigned short getNumKeys(void* pageBuffer);
+        bool getIsLeaf(void* pageBuffer) const;
 
-        unsigned short getFreeBytes(void* pageBuffer);
+        unsigned short getNumKeys(void* pageBuffer) const;
 
-        int getNextPageNum(void* pageBuffer);
+        unsigned short getFreeBytes(void* pageBuffer) const;
+
+        int getNextPageNum(void* pageBuffer) const;
+
+        void setIsLeaf(void* pageBuffer, bool isLeaf);
 
         void setNumKeys(void* pageBuffer, unsigned short numKeys);
 

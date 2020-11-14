@@ -79,6 +79,8 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix.printBTree(ixFileHandle, ageAttr, stream), success)
                                     << "indexManager::printBTree() should succeed.";
 
+        std::cout << "Inside test insert_one_entry_and_print, B+ tree is\n" << stream.str() << std::endl;
+
         validateTree(stream, 1, 1, 0, PAGE_SIZE / 10 / 2, true);
 
     }

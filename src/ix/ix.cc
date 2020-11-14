@@ -47,7 +47,7 @@ namespace PeterDB {
             // set up meta data page
             void* metaDataPageBuffer = malloc(PAGE_SIZE);
             unsigned rootPageNum = 1;
-            memcpy((char*) metaDataPageBuffer, &rootPageNum, sizeof(unsigned));
+            memcpy((char*) metaDataPageBuffer, &rootPageNum, ROOT_PAGE_NUM_SIZE);
             RC errCode = ixFileHandle.fileHandle.appendPage(metaDataPageBuffer);
             if (errCode != 0) return errCode;
             free(metaDataPageBuffer);
@@ -69,12 +69,9 @@ namespace PeterDB {
         }
         // B+ tree has at least 1 node
         else {
-            unsigned rootPageNum;
-            RC errCode = ixFileHandle.fileHandle.readPage(0, pageBuffer);
-            if (errCode != 0) return errCode;
-            memcpy(&rootPageNum, (char*) pageBuffer, sizeof(unsigned));
+            unsigned rootPageNum = getRootPageNum(ixFileHandle);
 
-            errCode = ixFileHandle.fileHandle.readPage(rootPageNum, pageBuffer);
+            RC errCode = ixFileHandle.fileHandle.readPage(rootPageNum, pageBuffer);
             if (errCode != 0) return errCode;
             void* newChildEntry = nullptr;
 
@@ -103,17 +100,29 @@ namespace PeterDB {
     }
 
     RC IndexManager::printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const {
+        unsigned rootPageNum = getRootPageNum(ixFileHandle);
+        return printNode(ixFileHandle, attribute.type, rootPageNum, 0, out);
     }
 
     /**********************************/
     /*****    Helper functions  *******/
     /**********************************/
+    unsigned IndexManager::getRootPageNum(IXFileHandle &ixFileHandle) const {
+        void* pageBuffer = malloc(PAGE_SIZE);
+        unsigned rootPageNum;
+        RC errCode = ixFileHandle.fileHandle.readPage(0, pageBuffer);
+        if (errCode != 0) return errCode;
+
+        memcpy(&rootPageNum, (char*) pageBuffer, ROOT_PAGE_NUM_SIZE);
+        free(pageBuffer);
+        return rootPageNum;
+    }
+
     RC IndexManager::insertEntry1(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum,
                                   unsigned keyLength, AttrType attrType, const void *key,
                                   const RID &rid, void* newChildEntry, unsigned rootPageNum) {
         bool isRoot = pageNum==rootPageNum;
-        bool isLeaf;
-        memcpy(&isLeaf, pageBuffer, IS_LEAF_SIZE);
+        bool isLeaf = getIsLeaf(pageBuffer);
         unsigned short freeBytes = getFreeBytes(pageBuffer);
         unsigned short numKeys = getNumKeys(pageBuffer);
 
@@ -202,6 +211,8 @@ namespace PeterDB {
             sizeToBeShifted = PAGE_SIZE-F_SIZE-N_SIZE-freeBytes-PTR_PN_SIZE-IS_LEAF_SIZE;
         }
 
+        unsigned currPageNum;
+        unsigned currSlotNum;
         if (attrType == TypeVarChar) {
             std::string newKeyVarChar = std::string((char*) key+VC_LEN_SIZE, keyLength-VC_LEN_SIZE);
             unsigned currVarCharLen;
@@ -209,10 +220,8 @@ namespace PeterDB {
                 memcpy(&currVarCharLen, (char*) pageBuffer+currKeyPtr, VC_LEN_SIZE);
                 std::string currKeyVarChar = std::string((char*) pageBuffer+currKeyPtr+VC_LEN_SIZE, currVarCharLen);
                 if (newKeyVarChar == currKeyVarChar) {
-                    unsigned currPageNum;
                     memcpy(&currPageNum, (char*) pageBuffer+currKeyPtr+VC_LEN_SIZE+currVarCharLen, PTR_PN_SIZE);
                     if (rid.pageNum == currPageNum) {
-                        unsigned currSlotNum;
                         memcpy(&currSlotNum, (char*) pageBuffer+currKeyPtr+VC_LEN_SIZE+currVarCharLen+PTR_PN_SIZE, PTR_SN_SIZE);
                         // Equal slotNum is impossible
                         if (rid.slotNum < currPageNum) insertHere = true;
@@ -244,10 +253,8 @@ namespace PeterDB {
                 int currKeyInt;
                 memcpy(&currKeyInt, (char*) pageBuffer+currKeyPtr, INT_SIZE);
                 if (newKeyInt == currKeyInt) {
-                    unsigned currPageNum;
                     memcpy(&currPageNum, (char*) pageBuffer+currKeyPtr+INT_SIZE, PTR_PN_SIZE);
                     if (rid.pageNum == currPageNum) {
-                        unsigned currSlotNum;
                         memcpy(&currSlotNum, (char*) pageBuffer+currKeyPtr+INT_SIZE+PTR_PN_SIZE, PTR_SN_SIZE);
                         // Equal slotNum is impossible
                         if (rid.slotNum < currPageNum) insertHere = true;
@@ -279,10 +286,8 @@ namespace PeterDB {
                 float currKeyFlt;
                 memcpy(&currKeyFlt, (char*) pageBuffer+currKeyPtr, FLT_SIZE);
                 if (newKeyFlt == currKeyFlt) {
-                    unsigned currPageNum;
                     memcpy(&currPageNum, (char*) pageBuffer+currKeyPtr+FLT_SIZE, PTR_PN_SIZE);
                     if (rid.pageNum == currPageNum) {
-                        unsigned currSlotNum;
                         memcpy(&currSlotNum, (char*) pageBuffer+currKeyPtr+FLT_SIZE+PTR_PN_SIZE, PTR_SN_SIZE);
                         // Equal slotNum is impossible
                         if (rid.slotNum < currPageNum) insertHere = true;
@@ -554,7 +559,7 @@ namespace PeterDB {
     RC IndexManager::initLeafNode(void* pageBuffer, void* entryPtr, unsigned short bytesNeeded,
                                   int numKeys, int nextPageNum){
         bool isLeaf = true;
-        memcpy((char*) pageBuffer, &isLeaf, IS_LEAF_SIZE);
+        setIsLeaf(pageBuffer, isLeaf);
         memcpy((char*) pageBuffer + IS_LEAF_SIZE, entryPtr, bytesNeeded);
         setNextPageNum(pageBuffer, nextPageNum);
         setNumKeys(pageBuffer,numKeys);
@@ -564,32 +569,183 @@ namespace PeterDB {
 
     RC IndexManager::initNonLeafNode(void* pageBuffer, void* entryPtr, unsigned short bytesNeeded, int numKeys){
         bool isLeaf = false;
-        memcpy((char*) pageBuffer, &isLeaf, IS_LEAF_SIZE);
+        setIsLeaf(pageBuffer, isLeaf);
         memcpy((char*) pageBuffer + IS_LEAF_SIZE, entryPtr, bytesNeeded);
         setNumKeys(pageBuffer,numKeys);
         setFreeBytes(pageBuffer, PAGE_SIZE - IS_LEAF_SIZE - N_SIZE - F_SIZE - bytesNeeded);
         return 0;
     }
 
+    RC IndexManager::printNode(IXFileHandle &ixFileHandle, AttrType attrType,
+                               unsigned pageNum, int indent, std::ostream &out) const {
+        void *pageBuffer = malloc(PAGE_SIZE);
+        ixFileHandle.fileHandle.readPage(pageNum, pageBuffer);
+
+        bool isLeaf = getIsLeaf(pageBuffer);
+        unsigned short numKeys = getNumKeys(pageBuffer);
+
+        for (int i = 0; i < indent; i++) out << " ";
+
+        if (isLeaf) {
+            out << "{\"keys\": [";
+            unsigned short currKeyPtr = IS_LEAF_SIZE;
+            unsigned currPageNum;
+            unsigned currSlotNum;
+            if (attrType == TypeVarChar) {
+                unsigned currVarCharLen;
+                for (int i = 0; i < numKeys; i++) {
+                    memcpy(&currVarCharLen, (char *) pageBuffer + currKeyPtr, VC_LEN_SIZE);
+                    std::string currKeyVarChar = std::string((char *) pageBuffer + currKeyPtr + VC_LEN_SIZE,
+                                                             currVarCharLen);
+                    memcpy(&currPageNum, (char *) pageBuffer + currKeyPtr + VC_LEN_SIZE + currVarCharLen, PTR_PN_SIZE);
+                    memcpy(&currSlotNum, (char *) pageBuffer + currKeyPtr + VC_LEN_SIZE + currVarCharLen + PTR_PN_SIZE,
+                           PTR_SN_SIZE);
+
+                    out << "\"" << currKeyVarChar << ":[(" << currPageNum << "," << currSlotNum << ")]\"";
+                    if (i == numKeys - 1) out << "]},\n";
+                    else out << ",\n";
+
+                    unsigned short sizePassed = currVarCharLen + VC_LEN_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
+                    currKeyPtr += sizePassed;
+                }
+            } else if (attrType = TypeInt) {
+                int currKeyInt;
+                for (int i = 0; i < numKeys; i++) {
+                    memcpy(&currKeyInt, (char *) pageBuffer + currKeyPtr, INT_SIZE);
+                    memcpy(&currPageNum, (char *) pageBuffer + currKeyPtr + INT_SIZE, PTR_PN_SIZE);
+                    memcpy(&currSlotNum, (char *) pageBuffer + currKeyPtr + INT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
+
+                    out << "\"" << currKeyInt << ":[(" << currPageNum << "," << currSlotNum << ")]\"";
+                    if (i == numKeys - 1) out << "]},\n";
+                    else out << ",\n";
+
+                    unsigned short sizePassed = INT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
+                    currKeyPtr += sizePassed;
+                }
+            } else {
+                float currKeyFlt;
+                for (int i = 0; i < numKeys; i++) {
+                    memcpy(&currKeyFlt, (char *) pageBuffer + currKeyPtr, FLT_SIZE);
+                    memcpy(&currPageNum, (char *) pageBuffer + currKeyPtr + FLT_SIZE, PTR_PN_SIZE);
+                    memcpy(&currSlotNum, (char *) pageBuffer + currKeyPtr + FLT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
+
+                    out << "\"" << currKeyFlt << ":[(" << currPageNum << "," << currSlotNum << ")]\"";
+                    if (i == numKeys - 1) out << "]},\n";
+                    else out << ",\n";
+
+                    unsigned short sizePassed = FLT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
+                    currKeyPtr += sizePassed;
+                }
+            }
+        }
+        else {
+            out << "{\"keys\": [";
+            unsigned short currKeyPtr = IS_LEAF_SIZE+PTR_PN_SIZE;
+            std::vector<int> pageNumVector;
+
+            if (attrType == TypeVarChar) {
+                unsigned currVarCharLen;
+                int currPageNum;
+                for (int i = 0; i < numKeys; i++) {
+                    memcpy(&currVarCharLen, (char*) pageBuffer + currKeyPtr, VC_LEN_SIZE);
+                    std::string currKeyVarChar = std::string((char *) pageBuffer + currKeyPtr + VC_LEN_SIZE, currVarCharLen);
+                    memcpy(&currPageNum,
+                           (char*) pageBuffer+currKeyPtr+VC_LEN_SIZE+currVarCharLen+PTR_PN_SIZE+PTR_SN_SIZE,
+                           PTR_PN_SIZE);
+                    pageNumVector.push_back(currPageNum);
+
+                    out << "\"" << currKeyVarChar << "\"";
+                    if (i == numKeys - 1) {
+                        out << "],\n";
+                        for (int i = 0; i < indent+1; i++) out << " ";
+                        out << "\"children\": [\n";
+                    }
+                    else out << ",";
+
+                    unsigned short sizePassed = currVarCharLen + VC_LEN_SIZE + PTR_PN_SIZE + PTR_SN_SIZE + PTR_PN_SIZE;
+                    currKeyPtr += sizePassed;
+                }
+            }
+            else if (attrType == TypeInt) {
+                int currKeyInt;
+                int currPageNum;
+                for (int i = 0; i < numKeys; i++) {
+                    memcpy(&currKeyInt, (char *) pageBuffer + currKeyPtr, INT_SIZE);
+                    memcpy(&currPageNum, (char*) pageBuffer+currKeyPtr+INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE, PTR_PN_SIZE);
+                    pageNumVector.push_back(currPageNum);
+
+                    out << "\"" << currKeyInt << "\"";
+                    if (i == numKeys - 1) {
+                        out << "],\n";
+                        for (int i = 0; i < indent+1; i++) out << " ";
+                        out << "\"children\": [\n";
+                    }
+                    else out << ",";
+
+                    unsigned short sizePassed = INT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE + PTR_PN_SIZE;
+                    currKeyPtr += sizePassed;
+                }
+            }
+            else {
+                float currKeyFlt;
+                int currPageNum;
+                for (int i = 0; i < numKeys; i++) {
+                    memcpy(&currKeyFlt, (char *) pageBuffer + currKeyPtr, FLT_SIZE);
+                    memcpy(&currPageNum, (char*) pageBuffer+currKeyPtr+FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE, PTR_PN_SIZE);
+                    pageNumVector.push_back(currPageNum);
+
+                    out << "\"" << currKeyFlt << "\"";
+                    if (i == numKeys - 1) {
+                        out << "],\n";
+                        for (int i = 0; i < indent+1; i++) out << " ";
+                        out << "\"children\": [\n";
+                    }
+                    else out << ",";
+
+                    unsigned short sizePassed = FLT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE + PTR_PN_SIZE;
+                    currKeyPtr += sizePassed;
+                }
+            }
+            for (int pageNum : pageNumVector){
+                printNode(ixFileHandle, attrType, pageNum, indent+4, out);
+            }
+
+            for (int i = 0; i < indent; i++) out << " ";
+            out << "]},\n";
+        }
+        free(pageBuffer);
+        return 0;
+    }
+
     /*********************************************/
     /*****    Getter and Setter functions  *******/
     /*********************************************/
-    unsigned short IndexManager::getNumKeys(void* pageBuffer) {
+    bool IndexManager::getIsLeaf(void* pageBuffer) const {
+        bool isLeaf;
+        memcpy(&isLeaf, (char*) pageBuffer, IS_LEAF_SIZE);
+        return isLeaf;
+    }
+
+    unsigned short IndexManager::getNumKeys(void* pageBuffer) const {
         unsigned short numKeys;
         memcpy(&numKeys, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
         return numKeys;
     }
 
-    unsigned short IndexManager::getFreeBytes(void* pageBuffer) {
+    unsigned short IndexManager::getFreeBytes(void* pageBuffer) const {
         unsigned short freeBytes;
         memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-F_SIZE, F_SIZE);
         return freeBytes;
     }
 
-    int IndexManager::getNextPageNum(void* pageBuffer) {
+    int IndexManager::getNextPageNum(void* pageBuffer) const {
         int nextPageNum;
         memcpy(&nextPageNum, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE-NXT_PN_SIZE, NXT_PN_SIZE);
         return nextPageNum;
+    }
+
+    void IndexManager::setIsLeaf(void* pageBuffer, bool isLeaf) {
+        memcpy((char*) pageBuffer, &isLeaf, IS_LEAF_SIZE);
     }
 
     void IndexManager::setNumKeys(void* pageBuffer, unsigned short numKeys) {
