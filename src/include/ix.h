@@ -54,13 +54,18 @@ namespace PeterDB {
         // Print the B+ tree in pre-order (in a JSON record format)
         RC printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const;
 
-    private:
+        unsigned getRootPageNum(IXFileHandle &ixFileHandle) const;
+
+        bool getIsLeaf(void* pageBuffer) const;
+
+        unsigned short getNumKeys(void* pageBuffer) const;
+
+    //private:
         PagedFileManager* pfm;
 
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
-        unsigned getRootPageNum(IXFileHandle &ixFileHandle) const;
 
         RC insertEntry1(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
                        AttrType attrType, const void *key, const RID &rid, void* newChildEntry, unsigned rootPageNum);
@@ -94,9 +99,8 @@ namespace PeterDB {
         /*********************************************/
         /*****    Getter and Setter functions  *******/
         /*********************************************/
-        bool getIsLeaf(void* pageBuffer) const;
 
-        unsigned short getNumKeys(void* pageBuffer) const;
+
 
         unsigned short getFreeBytes(void* pageBuffer) const;
 
@@ -128,13 +132,29 @@ namespace PeterDB {
         IX_ScanIterator();
 
         // Destructor
-        ~IX_ScanIterator();
+        ~IX_ScanIterator() ;
+
+        RC initialize(IXFileHandle &ixFileHandle, const Attribute &attribute,
+                      const void *lowKey, const void *highKey, bool lowKeyInclusive, bool highKeyInclusive);
 
         // Get next matching entry
         RC getNextEntry(RID &rid, void *key);
 
         // Terminate index scan
         RC close();
+
+        IXFileHandle *ixFileHandle;
+
+    private:
+        AttrType attrType;
+        const void *lowKey;
+        const void *highKey;
+        bool lowKeyInclusive;
+        bool highKeyInclusive;
+        int ixCurrPageNum;
+        int ixCurrKeyPtr;
+        bool isFirstGetNextEntry;
+        void* currPageBuffer;
     };
 
     class IXFileHandle {
