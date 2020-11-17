@@ -79,8 +79,6 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix.printBTree(ixFileHandle, ageAttr, stream), success)
                                     << "indexManager::printBTree() should succeed.";
 
-        std::cout << "Inside test insert_one_entry_and_print, B+ tree is\n" << stream.str() << std::endl;
-
         validateTree(stream, 1, 1, 0, PAGE_SIZE / 10 / 2, true);
 
     }
@@ -111,6 +109,8 @@ namespace PeterDBTesting {
         ASSERT_EQ(ixFileHandle.collectCounterValues(rcAfter, wcAfter, acAfter), success)
                                     << "indexManager::collectCounterValues() should succeed.";
 
+        std::cout << "Inside test insert_one_entry_and_scan, after scan, rcAfter - rc is " << rcAfter - rc << std::endl;
+
         EXPECT_GE(getFileSize(indexFileName) / PAGE_SIZE, 2) << "File size should get increased.";
         EXPECT_EQ(getFileSize(indexFileName) % PAGE_SIZE, 0) << "File should be based on PAGE_SIZE.";
 
@@ -118,11 +118,13 @@ namespace PeterDBTesting {
         // reset RID
         rid = PeterDB::RID{};
         int count = 0;
+        std::cout << "Inside test insert_one_entry_and_scan, before getNextEntry" << std::endl;
         while (ix_ScanIterator.getNextEntry(rid, &key) == success) {
             ASSERT_EQ(rid.pageNum, 900) << "rid.pageNum is not correct.";
             ASSERT_EQ(rid.slotNum, 75) << "rid.slotNum is not correct.";
             count++;
         }
+        std::cout << "Inside test insert_one_entry_and_scan, after getNextEntry" << std::endl;
         ASSERT_EQ(count, 1) << "scan count is not correct.";
 
         // collect counters
