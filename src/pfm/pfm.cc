@@ -116,7 +116,7 @@ namespace PeterDB {
             fileToBeHandled->seekg((1+pageNum)*PAGE_SIZE);
             fileToBeHandled->read((char*) data , PAGE_SIZE);
             readPageCounter++;
-            writeHiddenPage();
+            //writeHiddenPage();
             return 0;
         }
         else {
@@ -129,7 +129,7 @@ namespace PeterDB {
             fileToBeHandled->seekp((1+pageNum)*PAGE_SIZE);
             fileToBeHandled->write((char*) data, PAGE_SIZE);
             writePageCounter++;
-            writeHiddenPage();
+            //writeHiddenPage();
             return 0;
         }
         else{
@@ -151,7 +151,7 @@ namespace PeterDB {
     }
 
     RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
-        readHiddenPage();
+        //readHiddenPage();
         readPageCount = readPageCounter;
         writePageCount = writePageCounter;
         appendPageCount = appendPageCounter;
