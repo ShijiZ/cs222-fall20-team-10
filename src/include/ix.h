@@ -147,14 +147,19 @@ namespace PeterDB {
 
     private:
         AttrType attrType;
-        const void *lowKey;
-        const void *highKey;
+        const void* lowKey;
+        const void* highKey;
         bool lowKeyInclusive;
         bool highKeyInclusive;
-        int ixCurrPageNum;
+        //int ixCurrPageNum;
         int ixCurrKeyPtr;
         bool isFirstGetNextEntry;
         void* currPageBuffer;
+
+        int minInt = std::numeric_limits<int>::min();
+        int maxInt = std::numeric_limits<int>::max();
+        float minFlt = std::numeric_limits<float>::min();
+        float maxFlt = std::numeric_limits<float>::max();
     };
 
     class IXFileHandle {
