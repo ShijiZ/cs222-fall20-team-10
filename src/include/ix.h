@@ -68,7 +68,7 @@ namespace PeterDB {
         /**********************************/
 
         RC insertEntry1(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
-                       AttrType attrType, const void *key, const RID &rid, void* newChildEntry, unsigned rootPageNum);
+                       AttrType attrType, const void *key, const RID &rid, void* &newChildEntry, unsigned rootPageNum);
 
         RC insertEntry2(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
                         unsigned short bytesNeeded, unsigned short freeBytes, unsigned short numKeys,
@@ -84,7 +84,7 @@ namespace PeterDB {
                                   unsigned short numKeys, AttrType attrType, int& pageNumToBeInserted);
 
         RC splitNode(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned keyLength,
-                     AttrType attrType, const void *key, const RID &rid, void* newChildEntry,
+                     AttrType attrType, const void *key, const RID &rid, void* &newChildEntry,
                      unsigned pageNum, unsigned short bytesNeeded,unsigned short freeBytes,
                      unsigned short numKeys, bool isLeaf, bool isRoot);
 

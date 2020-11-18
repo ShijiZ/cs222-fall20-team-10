@@ -222,12 +222,12 @@ namespace PeterDBTesting {
         // 5. Scan entries NO_OP -- open
 
         unsigned key;
-        //unsigned numOfEntries = 12345;
+        unsigned numOfEntries = 12345;
         unsigned numOfMoreEntries = 12345;
         unsigned seed = 12545;
         unsigned salt = 90;
 
-        unsigned numOfEntries = 1234;
+        //unsigned numOfEntries = 1234;
         //unsigned numOfMoreEntries = 1;
 
         // insert entries
@@ -256,7 +256,6 @@ namespace PeterDBTesting {
 
         ASSERT_EQ(getFileSize(indexFileName) % PAGE_SIZE, 0) << "File should be based on PAGE_SIZE.";
 
-        /***
         // insert more entries
         seed = 200;
         salt = 567;
@@ -292,10 +291,8 @@ namespace PeterDBTesting {
 
         EXPECT_GE (getFileSize(indexFileName) / PAGE_SIZE, (numOfEntries + numOfMoreEntries) / PAGE_SIZE / 10)
                             << "page size should be increased.";
-***/
     }
 
-    /*
     TEST_F(IX_Test, scan_by_GE_OP) {
         // Functions tested
         // 1. Insert entry
@@ -336,6 +333,7 @@ namespace PeterDBTesting {
                             << "page size should be increased.";
 
     }
+
 
     TEST_F(IX_Test, scan_by_LT_OP) {
         // Functions tested
@@ -380,6 +378,7 @@ namespace PeterDBTesting {
 
     }
 
+
     TEST_F(IX_Test, scan_by_EQ_OP) {
         // Functions tested
         // 1. Insert entries with two different keys
@@ -422,6 +421,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix_ScanIterator.close(), success) << "IX_ScanIterator::close() should succeed.";
 
     }
+    /*
 
     TEST_F(IX_Test, scan_on_reinserted_entries) {
         // Functions tested
