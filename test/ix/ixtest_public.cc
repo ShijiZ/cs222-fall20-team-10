@@ -4,6 +4,7 @@
 #include "test/utils/ix_test_utils.h"
 
 namespace PeterDBTesting {
+    /*
     TEST_F(IX_File_Test, create_open_close_destory_index) {
         // Functions tested
         // 1. Create Index File
@@ -421,6 +422,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix_ScanIterator.close(), success) << "IX_ScanIterator::close() should succeed.";
 
     }
+     */
     /*
 
     TEST_F(IX_Test, scan_on_reinserted_entries) {
@@ -592,7 +594,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix_ScanIterator.close(), success) << "IX_ScanIterator::close() should succeed.";
 
     }
-
+*/
     TEST_F(IX_Test, scan_varchar_with_compact_size) {
         // Checks whether VARCHAR type is handled properly or not.
         //
@@ -610,6 +612,7 @@ namespace PeterDBTesting {
 
         // insert entries
         for (unsigned i = 0; i < numOfEntries; i++) {
+            std::cout << "inside scan_varchar_with_compact_size, before inserting " << i+1 << "th varChar" << std::endl;
             memset(key, 0, 1004);
             prepareKeyAndRid(i, key, rid);
 
@@ -620,6 +623,7 @@ namespace PeterDBTesting {
                 rids.emplace_back(rid);
             }
         }
+        std::cout << "inside scan_varchar_with_compact_size, After insert first 500 varChar" << std::endl;
         // insert more entries
 
         for (unsigned i = 0; i < numOfMoreEntries; i++) {
@@ -631,6 +635,7 @@ namespace PeterDBTesting {
 
             rids.emplace_back(rid);
         }
+        std::cout << "inside scan_varchar_with_compact_size, After insert 5 more varChar" << std::endl;
 
         // print BTree, by this time the BTree should have only one node
         std::stringstream stream;
@@ -683,7 +688,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix_ScanIterator.close(), success) << "IX_ScanIterator::close() should succeed.";
 
     }
-
+/*
     TEST_F(IX_Test, split_rotate_and_promote_on_insertion) {
         // Checks whether the insertion is implemented correctly (split should happen)
         // Functions tested
