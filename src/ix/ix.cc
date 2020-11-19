@@ -604,10 +604,10 @@ namespace PeterDB {
         for (int i = 0; i < indent; i++) out << " ";
 
         if (isLeaf) {
-            out << "{\"keys\": [";
             unsigned short currKeyPtr = IS_LEAF_SIZE;
             unsigned currPageNum;
             unsigned short currSlotNum;
+            out << "{\"keys\": [";
             if (attrType == TypeVarChar) {
                 unsigned currVarCharLen;
                 for (int i = 0; i < numKeys; i++) {
@@ -617,10 +617,9 @@ namespace PeterDB {
                     memcpy(&currPageNum, (char*) pageBuffer + currKeyPtr + VC_LEN_SIZE + currVarCharLen, PTR_PN_SIZE);
                     memcpy(&currSlotNum, (char*) pageBuffer + currKeyPtr + VC_LEN_SIZE + currVarCharLen + PTR_PN_SIZE,
                            PTR_SN_SIZE);
-
                     out << "\"" << currKeyVarChar << ":[(" << currPageNum << "," << currSlotNum << ")]\"";
-                    if (i == numKeys - 1) out << "]},\n";
-                    else out << ",\n";
+                    if (i == numKeys - 1) out << "]}";
+                    else out << ",";
 
                     unsigned short sizePassed = currVarCharLen + VC_LEN_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
                     currKeyPtr += sizePassed;
@@ -633,8 +632,8 @@ namespace PeterDB {
                     memcpy(&currSlotNum, (char*) pageBuffer + currKeyPtr + INT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
 
                     out << "\"" << currKeyInt << ":[(" << currPageNum << "," << currSlotNum << ")]\"";
-                    if (i == numKeys - 1) out << "]},\n";
-                    else out << ",\n";
+                    if (i == numKeys - 1) out << "]}";
+                    else out << ",";
 
                     unsigned short sizePassed = INT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
                     currKeyPtr += sizePassed;
@@ -647,8 +646,8 @@ namespace PeterDB {
                     memcpy(&currSlotNum, (char*) pageBuffer + currKeyPtr + FLT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
 
                     out << "\"" << currKeyFlt << ":[(" << currPageNum << "," << currSlotNum << ")]\"";
-                    if (i == numKeys - 1) out << "]},\n";
-                    else out << ",\n";
+                    if (i == numKeys - 1) out << "]}";
+                    else out << ",";
 
                     unsigned short sizePassed = FLT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
                     currKeyPtr += sizePassed;
@@ -663,6 +662,8 @@ namespace PeterDB {
             if (attrType == TypeVarChar) {
                 unsigned currVarCharLen;
                 int currPageNum;
+                memcpy(&currPageNum, (char*) pageBuffer + currKeyPtr - PTR_PN_SIZE, PTR_PN_SIZE);
+                pageNumVector.push_back(currPageNum);
                 for (int i = 0; i < numKeys; i++) {
                     memcpy(&currVarCharLen, (char*) pageBuffer + currKeyPtr, VC_LEN_SIZE);
                     std::string currKeyVarChar = std::string((char *) pageBuffer + currKeyPtr + VC_LEN_SIZE, currVarCharLen);
@@ -686,6 +687,8 @@ namespace PeterDB {
             else if (attrType == TypeInt) {
                 int currKeyInt;
                 int currPageNum;
+                memcpy(&currPageNum, (char*) pageBuffer + currKeyPtr - PTR_PN_SIZE, PTR_PN_SIZE);
+                pageNumVector.push_back(currPageNum);
                 for (int i = 0; i < numKeys; i++) {
                     memcpy(&currKeyInt, (char *) pageBuffer + currKeyPtr, INT_SIZE);
                     memcpy(&currPageNum, (char*) pageBuffer+currKeyPtr+INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE, PTR_PN_SIZE);
@@ -706,6 +709,8 @@ namespace PeterDB {
             else {
                 float currKeyFlt;
                 int currPageNum;
+                memcpy(&currPageNum, (char*) pageBuffer + currKeyPtr - PTR_PN_SIZE, PTR_PN_SIZE);
+                pageNumVector.push_back(currPageNum);
                 for (int i = 0; i < numKeys; i++) {
                     memcpy(&currKeyFlt, (char *) pageBuffer + currKeyPtr, FLT_SIZE);
                     memcpy(&currPageNum, (char*) pageBuffer+currKeyPtr+FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE, PTR_PN_SIZE);
@@ -723,12 +728,15 @@ namespace PeterDB {
                     currKeyPtr += sizePassed;
                 }
             }
+            int pageNumVectorSize = pageNumVector.size();
             for (int pageNum : pageNumVector){
                 printNode(ixFileHandle, attrType, pageNum, indent+4, out);
+                if (pageNum != pageNumVector[pageNumVectorSize-1]) out << ",\n" ;
+                else out << "\n";
             }
 
             for (int i = 0; i < indent; i++) out << " ";
-            out << "]},\n";
+            out << "]}";
         }
         free(pageBuffer);
         return 0;

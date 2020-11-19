@@ -641,6 +641,7 @@ namespace PeterDBTesting {
         std::stringstream stream;
         ASSERT_EQ(ix.printBTree(ixFileHandle, empNameAttr, stream), success)
                                     << "indexManager::printBTree() should succeed.";
+        std::cout << "inside scan_varchar_with_compact_size, print B tree is "<< stream.str() << std::endl;
 
         // we give D a very large
         // (1+n)n/2 <= PAGE_SIZE, thus n >= 2^6.5 =90.5, we would put very loose D as around 45.
