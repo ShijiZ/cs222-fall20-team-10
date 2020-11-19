@@ -117,12 +117,22 @@ namespace PeterDB {
             isLeaf = getIsLeaf(pageBuffer);
             numKeys = getNumKeys(pageBuffer);
         }
-
+        std::cout << "inside deleteEntry, pageNumTobeDeleted is "<<pageNumTobeDeleted<<std::endl;
         unsigned short currKeyPtr = IS_LEAF_SIZE;
         unsigned currPageNum;
         unsigned short currSlotNum;
         unsigned short sizePassed;
         int keyIdx;
+        int nextPageNum;
+        std::cout << "inside deleteEntry, before while numkeys is "<<numKeys<<std::endl;
+        while(numKeys == 0){
+            nextPageNum = getNextPageNum(pageBuffer);
+            if (nextPageNum == -1)  return -1;
+            RC errCode = ixFileHandle.fileHandle.readPage(nextPageNum, pageBuffer);
+            if (errCode != 0) return errCode;
+            pageNumTobeDeleted = nextPageNum;
+            numKeys = getNumKeys(pageBuffer);
+        }
         if (attrType == TypeVarChar) {
             std::string keyVarChar = std::string((char*) key+VC_LEN_SIZE, keyLength-VC_LEN_SIZE);
             unsigned currVarCharLen;
@@ -174,14 +184,20 @@ namespace PeterDB {
                 currKeyPtr += sizePassed;
             }
         }
-        if (keyIdx == numKeys) return -1;
-        std::cout << "Inside deleteEntry, keyIdx is " << keyIdx << ", numKeys is " << numKeys << std::endl;
+        std::cout << "inside deleteEntry, keyIdx is "<<keyIdx<<", numkeys is "<<numKeys<<std::endl;
+        if (keyIdx == numKeys) {
+            free(pageBuffer);
+            return -1;
+        }
+       // std::cout << "Inside deleteEntry, keyIdx is " << keyIdx << ", numKeys is " << numKeys << std::endl;
         memcpy((char*) pageBuffer+currKeyPtr,
                (char*) pageBuffer+currKeyPtr+keyLength+PTR_PN_SIZE+PTR_SN_SIZE,
-               PAGE_SIZE-NXT_PN_SIZE-N_SIZE-F_SIZE);
+               PAGE_SIZE-NXT_PN_SIZE-N_SIZE-F_SIZE-currKeyPtr-keyLength-PTR_PN_SIZE-PTR_SN_SIZE);
         setNumKeys(pageBuffer, numKeys-1);
         setFreeBytes(pageBuffer, getFreeBytes(pageBuffer)+keyLength+PTR_PN_SIZE+PTR_SN_SIZE);
+        std::cout << "inside deleteEntry, freeBytes is"<<getFreeBytes(pageBuffer)<<std::endl;
         ixFileHandle.fileHandle.writePage(pageNumTobeDeleted, pageBuffer);
+        free(pageBuffer);
         return 0;
     }
 
@@ -256,10 +272,10 @@ namespace PeterDB {
         // node is non-leaf node
         else {
             int pageNumToBeInserted;
-            std::cout<< "inside insertEntry1, before findPageNumToBeHandled " << std::endl;
+            //std::cout<< "inside insertEntry1, before findPageNumToBeHandled " << std::endl;
             RC errCode = findPageNumToBeHandled(pageBuffer, keyLength, key, rid,
                                                 numKeys, attrType, pageNumToBeInserted);
-            std::cout<< "inside insertEntry1, after findPageNumToBeHandled pageNumToBeInserted is " << pageNumToBeInserted << std::endl;
+           // std::cout<< "inside insertEntry1, after findPageNumToBeHandled pageNumToBeInserted is " << pageNumToBeInserted << std::endl;
             if(errCode != 0) return errCode;
 
             errCode = ixFileHandle.fileHandle.readPage(pageNumToBeInserted, pageBuffer);
@@ -282,7 +298,7 @@ namespace PeterDB {
                     memcpy(&varCharLen, (char*) newChildEntry, VC_LEN_SIZE);
                     //newChildKeyLength = VC_LEN_SIZE+varCharLen;
                     bytesNeeded = VC_LEN_SIZE+varCharLen+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
-                    std::cout << "Inside insertEntry1, varCharLen to be inserted is " << varCharLen << std::endl;
+                    //std::cout << "Inside insertEntry1, varCharLen to be inserted is " << varCharLen << std::endl;
                 }
                 else {
                     //newChildKeyLength = INT_OR_FLT_SIZE;
@@ -304,7 +320,7 @@ namespace PeterDB {
 
                     setFreeBytes(pageBuffer, freeBytes-bytesNeeded);
                     setNumKeys(pageBuffer, numKeys+1);
-                    std::cout << "Inside insertEntry1, child split, newChildEntry inserted to parent，numKeys is " << numKeys+1 << std::endl;
+                    //std::cout << "Inside insertEntry1, child split, newChildEntry inserted to parent，numKeys is " << numKeys+1 << std::endl;
                     return ixFileHandle.fileHandle.writePage(pageNum, pageBuffer);
                 }
                 else {
@@ -922,11 +938,6 @@ namespace PeterDB {
     RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
         if (ixFileHandle->fileHandle.getNumberOfPages() == 0) return -1;
         IndexManager &ix = IndexManager::instance();
-        //unsigned rootPageNum = ix.getRootPageNum(*ixFileHandle);
-        //void* currPageBuffer = malloc(PAGE_SIZE);
-        //RC errCode = ixFileHandle->fileHandle.readPage(ixCurrPageNum, currPageBuffer);
-        //if (errCode != 0) return errCode;
-
         unsigned short numKeys = ix.getNumKeys(currPageBuffer);
         unsigned lowKeyLength;
         unsigned highKeyLength;
@@ -950,7 +961,7 @@ namespace PeterDB {
             std::cout << "Inside getNextEntry, freeBytes is " << freeBytes << ", bytesLeft is " << bytesLeft << std::endl;
             if (freeBytes == bytesLeft){
                 int nextPageNum = ix.getNextPageNum(currPageBuffer);
-                std::cout << "Inside getNextEntry, nextPageNum is " << nextPageNum << std::endl;
+                //std::cout << "Inside getNextEntry, nextPageNum is " << nextPageNum << std::endl;
                 if (nextPageNum == -1) return IX_EOF;
                 RC errCode = ixFileHandle->fileHandle.readPage(nextPageNum, currPageBuffer);
                 if (errCode != 0) return errCode;
@@ -962,6 +973,7 @@ namespace PeterDB {
                     if (errCode != 0) return errCode;
                     numKeys = ix.getNumKeys(currPageBuffer);
                 }
+                std::cout << "Inside getNextEntry, nextPageNum is " << nextPageNum << std::endl;
                 ixCurrKeyPtr = IS_LEAF_SIZE;
                 //ixCurrPageNum = nextPageNum;
             }
@@ -1156,8 +1168,6 @@ namespace PeterDB {
             }
             else if (attrType == TypeInt) {
                 std::cout << "Inside getNextEntry, prepare output Int, lowKey is " << *(int*) this->lowKey << std::endl;
-                //int lowKeyInt;
-                //memcpy(&lowKeyInt, (char*) lowKey, INT_SIZE);
                 int lowKeyInt = *(int*) this->lowKey;
                 int currKeyInt;
                 for (keyIdx = 0; keyIdx < numKeys; keyIdx++) {
@@ -1202,7 +1212,6 @@ namespace PeterDB {
                     ixCurrKeyPtr = currKeyPtr + FLT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
                 }
             }
-            //ixCurrPageNum = pageNumTobeScanned;
             std::cout << "Inside getNextEntry, before test keyIdx " << std::endl;
             if (keyIdx == numKeys){
                 int nextPageNum = ix.getNextPageNum(currPageBuffer);
@@ -1231,15 +1240,10 @@ namespace PeterDB {
                     memcpy((char* )key,  (char* )currPageBuffer + IS_LEAF_SIZE, INT_OR_FLT_SIZE);
                     ixCurrKeyPtr = IS_LEAF_SIZE + INT_OR_FLT_SIZE + PTR_SN_SIZE + PTR_PN_SIZE;
                 }
-                //ixCurrPageNum = nextPageNum;
-                //errCode = ixFileHandle->fileHandle.readPage(nextPageNum, currPageBuffer);
-                //if (errCode != 0) return errCode;
             }
         }
         rid.pageNum = pageNum;
         rid.slotNum = slotNum;
-        //std::cout << "Inside getNextEntry, before return 0, pageNum is " << pageNum << " slotNum is " << slotNum << std::endl;
-        //free(currPageBuffer);
         return 0;
     }
 

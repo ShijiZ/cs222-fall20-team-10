@@ -4,7 +4,7 @@
 #include "test/utils/ix_test_utils.h"
 
 namespace PeterDBTesting {
-/*
+
     TEST_F(IX_File_Test, create_open_close_destory_index) {
         // Functions tested
         // 1. Create Index File
@@ -141,7 +141,7 @@ namespace PeterDBTesting {
         // Close Scan
         ASSERT_EQ(ix_ScanIterator.close(), success) << "IX_ScanIterator::close() should succeed.";
     }
-*/
+
     TEST_F(IX_Test, insert_and_delete_one_entry) {
         // Functions tested
         // 1. Insert one entry
@@ -192,7 +192,7 @@ namespace PeterDBTesting {
         EXPECT_EQ(getFileSize(indexFileName) % PAGE_SIZE, 0) << "File should be based on PAGE_SIZE.";
 
     }
-/*
+
     TEST_F(IX_Test, scan_on_destroyed_index) {
         // Functions tested
         // 1. Destroy Index File
@@ -423,7 +423,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix_ScanIterator.close(), success) << "IX_ScanIterator::close() should succeed.";
 
     }
-*/
+
     TEST_F(IX_Test, scan_on_reinserted_entries) {
         // Functions tested
         // 1. Insert large number of records
@@ -454,7 +454,7 @@ namespace PeterDBTesting {
             }
         }
         EXPECT_EQ(count, numOfEntries) << "scanned count should match inserted.";
-
+        std::cout <<"inside scan_on_reinserted_entries, after first scan"<< std::endl;
 
         // Delete some tuples
         unsigned deletedRecordNum = 0;
@@ -533,7 +533,7 @@ namespace PeterDBTesting {
                             << "page size should be increased.";
 
     }
-/*
+
     TEST_F(IX_Test, scan_to_delete_entries) {
         // Checks whether deleting an entry after getNextEntry() in a scan is handled properly or not.
         //    An example:
@@ -574,6 +574,7 @@ namespace PeterDBTesting {
             if (count % 5000 == 0) {
                 GTEST_LOG_(INFO) << count << " - Returned rid: " << rid.pageNum << " " << rid.slotNum;
             }
+            std::cout << "inside scan_to_delete_entries, before delete pagenum is "<< rid.pageNum <<"slotNum is "<<rid.slotNum<<std::endl;
             ASSERT_EQ(ix.deleteEntry(ixFileHandle, heightAttr, &key, rid), success)
                                         << "indexManager::deleteEntry() should succeed.";
         }
@@ -739,7 +740,7 @@ namespace PeterDBTesting {
         validateTree(stream, numOfEntries, numOfEntries, 2, 2);
 
     }
-/*
+
     TEST_F(IX_Test, duplicate_keys_in_one_page) {
         // Checks whether duplicated entries in a page are handled properly.
         //
@@ -845,7 +846,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix_ScanIterator.close(), success) << "IX_ScanIterator::close() should succeed.";
 
     }
-
+/*
     TEST_F(IX_Test, extra_merge_on_deletion) {
         // Checks whether the deletion is properly managed (non-lazy deletion)
         // Functions tested
@@ -889,6 +890,6 @@ namespace PeterDBTesting {
         validateTree(stream, 12, 12, 1, 2);
 
     }
-     */
+*/
 
 } // namespace PeterDBTesting
