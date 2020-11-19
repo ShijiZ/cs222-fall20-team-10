@@ -76,12 +76,6 @@ namespace PeterDB {
                         unsigned short freeBytes, unsigned short numKeys,
                         AttrType attrType, bool isLeaf);
 
-        //void shiftKey(void* pageBuffer, short keyOffset, short sizeToBeShifted, unsigned short distance);
-
-        RC insertEntry3(void* pageBuffer, const void *key, unsigned short currKeyPtr,
-                        unsigned short sizeToBeShifted, unsigned short bytesNeeded);
-
-
         RC findPageNumToBeHandled(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
                                   unsigned short numKeys, AttrType attrType, int& pageNumToBeInserted);
 
@@ -103,9 +97,6 @@ namespace PeterDB {
         /*********************************************/
         /*****    Getter and Setter functions  *******/
         /*********************************************/
-
-
-
         unsigned short getFreeBytes(void* pageBuffer) const;
 
         int getNextPageNum(void* pageBuffer) const;
@@ -155,7 +146,6 @@ namespace PeterDB {
         const void* highKey;
         bool lowKeyInclusive;
         bool highKeyInclusive;
-        //int ixCurrPageNum;
         int ixCurrKeyPtr;
         bool isFirstGetNextEntry;
         void* currPageBuffer;
@@ -168,7 +158,6 @@ namespace PeterDB {
 
     class IXFileHandle {
     public:
-
         // variables to keep counter for each operation
         unsigned ixReadPageCounter;
         unsigned ixWritePageCounter;
