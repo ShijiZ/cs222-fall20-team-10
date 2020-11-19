@@ -54,36 +54,28 @@ namespace PeterDB {
         // Print the B+ tree in pre-order (in a JSON record format)
         RC printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const;
 
-        unsigned getRootPageNum(IXFileHandle &ixFileHandle) const;
-
-        bool getIsLeaf(void* pageBuffer) const;
-
-        unsigned short getNumKeys(void* pageBuffer) const;
-
     //private:
         PagedFileManager* pfm;
 
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
+        unsigned short getKeyLength(const void *key, AttrType attrType);
 
-        RC insertEntry1(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
+        unsigned getRootPageNum(IXFileHandle &ixFileHandle) const;
+
+        RC insertEntryRec(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
                        AttrType attrType, const void *key, const RID &rid, void* &newChildEntry, unsigned rootPageNum);
 
-        RC insertEntry2(void* pageBuffer, //unsigned keyLength,
-                        const void *key, //const RID &rid,
-                        unsigned short bytesNeeded,
-                        unsigned short freeBytes, unsigned short numKeys,
-                        AttrType attrType, bool isLeaf);
+        RC insertEntryToPage(void* pageBuffer, const void *key, unsigned short bytesNeeded,
+                             unsigned short freeBytes, unsigned short numKeys,
+                             AttrType attrType, bool isLeaf, bool isHuge);
 
         RC findPageNumToBeHandled(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
                                   unsigned short numKeys, AttrType attrType, int& pageNumToBeInserted);
 
-        RC splitNode(IXFileHandle &ixFileHandle, void* pageBuffer, //unsigned keyLength,
-                     const void *key, //const RID &rid,
-                     unsigned short bytesNeeded,
-                     void* &newChildEntry,
-                     unsigned pageNum, unsigned short freeBytes, unsigned short numKeys,
+        RC splitNode(IXFileHandle &ixFileHandle, void* pageBuffer, const void *key, unsigned short bytesNeeded,
+                     void* &newChildEntry, unsigned pageNum, unsigned short freeBytes, unsigned short numKeys,
                      AttrType attrType, bool isLeaf, bool isRoot);
 
         RC initLeafNode(void* pageBuffer, void* entryPtr, unsigned short bytesNeeded,
@@ -97,6 +89,10 @@ namespace PeterDB {
         /*********************************************/
         /*****    Getter and Setter functions  *******/
         /*********************************************/
+        bool getIsLeaf(void* pageBuffer) const;
+
+        unsigned short getNumKeys(void* pageBuffer) const;
+
         unsigned short getFreeBytes(void* pageBuffer) const;
 
         int getNextPageNum(void* pageBuffer) const;
@@ -124,13 +120,10 @@ namespace PeterDB {
     public:
 
         // Constructor
-        IX_ScanIterator();
+        IX_ScanIterator() = default;;
 
         // Destructor
-        ~IX_ScanIterator() ;
-
-        RC initialize(IXFileHandle &ixFileHandle, const Attribute &attribute,
-                      const void *lowKey, const void *highKey, bool lowKeyInclusive, bool highKeyInclusive);
+        ~IX_ScanIterator() = default;;
 
         // Get next matching entry
         RC getNextEntry(RID &rid, void *key);
@@ -138,9 +131,14 @@ namespace PeterDB {
         // Terminate index scan
         RC close();
 
-        IXFileHandle *ixFileHandle;
+        RC initialize(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
+                      bool lowKeyInclusive, bool highKeyInclusive, IndexManager* ix);
+
+        IXFileHandle* ixFileHandle;
 
     private:
+        IndexManager* ix;
+
         AttrType attrType;
         const void* lowKey;
         const void* highKey;
