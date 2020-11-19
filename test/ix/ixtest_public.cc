@@ -275,7 +275,7 @@ namespace PeterDBTesting {
         count = 0;
         while (ix_ScanIterator.getNextEntry(rid, &key) == success) {
             validateUnorderedRID(key, count + seed, this->rids);
-            std::cout << "inside scan_by_NO_OP, inside second while, key is "<< key << std::endl;
+            //std::cout << "inside scan_by_NO_OP, inside second while, key is "<< key << std::endl;
             count++;
             if (count % 5000 == 0) {
                 GTEST_LOG_(INFO) << count << " - Returned rid: " << rid.pageNum << " " << rid.slotNum;
@@ -454,7 +454,6 @@ namespace PeterDBTesting {
             }
         }
         EXPECT_EQ(count, numOfEntries) << "scanned count should match inserted.";
-        std::cout <<"inside scan_on_reinserted_entries, after first scan"<< std::endl;
 
         // Delete some tuples
         unsigned deletedRecordNum = 0;
@@ -574,7 +573,7 @@ namespace PeterDBTesting {
             if (count % 5000 == 0) {
                 GTEST_LOG_(INFO) << count << " - Returned rid: " << rid.pageNum << " " << rid.slotNum;
             }
-            std::cout << "inside scan_to_delete_entries, before delete pagenum is "<< rid.pageNum <<"slotNum is "<<rid.slotNum<<std::endl;
+            //std::cout << "inside scan_to_delete_entries, before delete pagenum is "<< rid.pageNum <<"slotNum is "<<rid.slotNum<<std::endl;
             ASSERT_EQ(ix.deleteEntry(ixFileHandle, heightAttr, &key, rid), success)
                                         << "indexManager::deleteEntry() should succeed.";
         }
@@ -612,7 +611,7 @@ namespace PeterDBTesting {
 
         // insert entries
         for (unsigned i = 0; i < numOfEntries; i++) {
-            std::cout << "inside scan_varchar_with_compact_size, before inserting " << i+1 << "th varChar" << std::endl;
+            //std::cout << "inside scan_varchar_with_compact_size, before inserting " << i+1 << "th varChar" << std::endl;
             memset(key, 0, 1004);
             prepareKeyAndRid(i, key, rid);
 
@@ -658,12 +657,6 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix.scan(ixFileHandle, empNameAttr, &key, &key, true, true, ix_ScanIterator), success)
                                     << "indexManager::scan() should succeed.";
 
-        //// debug
-        for (PeterDB::RID ridInRids : rids) {
-            std::cout << "ridInRids pageNum: " << ridInRids.pageNum << std::endl;
-            std::cout << "ridInRids slotNum: " << ridInRids.slotNum << std::endl;
-        }
-        //////
         //iterate
         int count = 0;
         while (ix_ScanIterator.getNextEntry(rid, &key) == success) {
@@ -846,7 +839,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(ix_ScanIterator.close(), success) << "IX_ScanIterator::close() should succeed.";
 
     }
-/*
+
     TEST_F(IX_Test, extra_merge_on_deletion) {
         // Checks whether the deletion is properly managed (non-lazy deletion)
         // Functions tested
@@ -890,6 +883,5 @@ namespace PeterDBTesting {
         validateTree(stream, 12, 12, 1, 2);
 
     }
-*/
 
 } // namespace PeterDBTesting

@@ -88,11 +88,11 @@ namespace PeterDB {
 
         RC getNextRecord(RID &rid, void *data);
 
+        RC close();
+
         RC initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                       const std::string &conditionAttribute, const CompOp compOp, const void *value,
                       const std::vector<std::string> &attributeNames);
-
-        RC close();
 
         FileHandle fileHandle;
 
