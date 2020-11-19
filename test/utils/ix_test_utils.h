@@ -210,7 +210,7 @@ namespace PeterDBTesting {
                 T key = fixedKey == NULL ? value : fixedKey;
                 ASSERT_EQ(ix.insertEntry(ixFileHandle, attr, &key, rid), success)
                                             << "indexManager::insertEntry() should succeed.";
-                std::cout << "Inside generateAndInsertEntries, pageNum is " << rid.pageNum << " slotNum is " << rid.slotNum << " key is " << key << std::endl;
+                //std::cout << "Inside generateAndInsertEntries, pageNum is " << rid.pageNum << " slotNum is " << rid.slotNum << " key is " << key << std::endl;
             }
         }
 
