@@ -132,9 +132,14 @@ namespace PeterDB {
 
         if (isLeaf) {
             unsigned short bytesNeeded = keyLength + PTR_PN_SIZE + PTR_SN_SIZE;
+            void* entryToBeInserted = malloc(bytesNeeded);
+            memcpy((char*) entryToBeInserted, (char*) key, keyLength);
+            memcpy((char*) entryToBeInserted + keyLength, &rid.pageNum, PTR_PN_SIZE);
+            memcpy((char*) entryToBeInserted + keyLength + PTR_PN_SIZE, &rid.slotNum, PTR_SN_SIZE);
             // new key can be inserted in this leaf node
             if (bytesNeeded <= freeBytes) {
-                RC errCode = insertEntry2(pageBuffer, keyLength, key, rid, bytesNeeded,
+                RC errCode = insertEntry2(pageBuffer, entryToBeInserted, //key, //rid,
+                                          bytesNeeded, //keyLength,
                                           freeBytes, numKeys, attrType, true);
                 if(errCode != 0) return errCode;
                 //free(newChildEntry);
@@ -146,9 +151,14 @@ namespace PeterDB {
             }
             // new key cannot be inserted in this leaf node, must split
             else {
-                return splitNode(ixFileHandle, pageBuffer, keyLength, attrType, key, rid, newChildEntry,
-                                     pageNum, bytesNeeded, freeBytes, numKeys, true, isRoot);
+                RC errCode = splitNode(ixFileHandle, pageBuffer, //keyLength,
+                                 entryToBeInserted, //key, //rid,
+                                 bytesNeeded, newChildEntry,
+                                 pageNum, freeBytes, numKeys, attrType, true, isRoot);
+                if(errCode != 0) return errCode;
             }
+            free(entryToBeInserted);
+            return 0;
         }
         // node is non-leaf node
         else {
@@ -172,25 +182,29 @@ namespace PeterDB {
                 errCode = ixFileHandle.fileHandle.readPage(pageNum, pageBuffer);
                 if(errCode != 0) return errCode;
 
-                unsigned newChildKeyLength;
+                //unsigned newChildKeyLength;
+                unsigned short bytesNeeded;
                 if (attrType == TypeVarChar) {
                     unsigned varCharLen;
                     memcpy(&varCharLen, (char*) newChildEntry, VC_LEN_SIZE);
-                    newChildKeyLength = VC_LEN_SIZE+varCharLen;
+                    //newChildKeyLength = VC_LEN_SIZE+varCharLen;
+                    bytesNeeded = VC_LEN_SIZE+varCharLen+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
                     std::cout << "Inside insertEntry1, varCharLen to be inserted is " << varCharLen << std::endl;
                 }
                 else {
-                    newChildKeyLength = INT_OR_FLT_SIZE;
+                    //newChildKeyLength = INT_OR_FLT_SIZE;
+                    bytesNeeded = INT_OR_FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
                 }
-                unsigned bytesNeeded = newChildKeyLength+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
 
-                RID newChildEntryRid;
-                memcpy(&newChildEntryRid.pageNum, (char*) newChildEntry+newChildKeyLength, PTR_PN_SIZE);
-                memcpy(&newChildEntryRid.slotNum, (char*) newChildEntry+newChildKeyLength+PTR_PN_SIZE, PTR_SN_SIZE);
+                //RID newChildEntryRid;
+                //memcpy(&newChildEntryRid.pageNum, (char*) newChildEntry+newChildKeyLength, PTR_PN_SIZE);
+                //memcpy(&newChildEntryRid.slotNum, (char*) newChildEntry+newChildKeyLength+PTR_PN_SIZE, PTR_SN_SIZE);
 
                 if (bytesNeeded <= freeBytes) {
-                    RC errCode = insertEntry2(pageBuffer, bytesNeeded, newChildEntry, newChildEntryRid, bytesNeeded,
-                                              freeBytes, numKeys, attrType,false);
+                    RC errCode = insertEntry2(pageBuffer, //bytesNeeded,
+                                              newChildEntry, //newChildEntryRid,
+                                              bytesNeeded,
+                                              freeBytes, numKeys, attrType, false);
                     if(errCode != 0) return errCode;
                     //free(newChildEntry);
                     newChildEntry = nullptr;
@@ -201,34 +215,45 @@ namespace PeterDB {
                     return ixFileHandle.fileHandle.writePage(pageNum, pageBuffer);
                 }
                 else {
-                    return splitNode(ixFileHandle, pageBuffer, bytesNeeded, attrType, newChildEntry, newChildEntryRid, newChildEntry,
-                                     pageNum, bytesNeeded, freeBytes, numKeys, false, isRoot);
+                    return splitNode(ixFileHandle, pageBuffer, //bytesNeeded,
+                                     newChildEntry, //newChildEntryRid,
+                                     bytesNeeded,
+                                     newChildEntry,
+                                     pageNum, freeBytes, numKeys, attrType, false, isRoot);
                 }
             }
         }
     }
 
-    void IndexManager::shiftKey(void* pageBuffer, short keyOffset, short sizeToBeShifted, unsigned short distance) {
-        memcpy((char*) pageBuffer+keyOffset+distance, (char*) pageBuffer+keyOffset, sizeToBeShifted);
-    }
+    //void IndexManager::shiftKey(void* pageBuffer, short keyOffset, short sizeToBeShifted, unsigned short distance) {
+    //    memcpy((char*) pageBuffer+keyOffset+distance, (char*) pageBuffer+keyOffset, sizeToBeShifted);
+    //}
 
-    RC IndexManager::insertEntry2(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
+    RC IndexManager::insertEntry2(void* pageBuffer, const void *key, //const RID &rid, //unsigned keyLength,
                                   unsigned short bytesNeeded, unsigned short freeBytes, unsigned short numKeys,
                                   AttrType attrType, bool isLeaf){
-        bool insertHere = false;
         unsigned short currKeyPtr;
         unsigned short sizeToBeShifted;
+        unsigned short keyLength;
         if (isLeaf) {
             currKeyPtr = IS_LEAF_SIZE;
             sizeToBeShifted = PAGE_SIZE-F_SIZE-N_SIZE-NXT_PN_SIZE-freeBytes-IS_LEAF_SIZE;
+            keyLength = bytesNeeded-PTR_PN_SIZE-PTR_SN_SIZE;
         }
         else {
             currKeyPtr = IS_LEAF_SIZE + PTR_PN_SIZE;
             sizeToBeShifted = PAGE_SIZE-F_SIZE-N_SIZE-freeBytes-PTR_PN_SIZE-IS_LEAF_SIZE;
+            keyLength = bytesNeeded-PTR_PN_SIZE-PTR_SN_SIZE-PTR_PN_SIZE;
         }
 
+        RID rid;
+        memcpy(&rid.pageNum, (char*) key+keyLength, PTR_PN_SIZE);
+        memcpy(&rid.slotNum, (char*) key+keyLength+PTR_PN_SIZE, PTR_SN_SIZE);
+
+        //bool insertHere = false;
         unsigned currPageNum;
         unsigned short currSlotNum;
+        unsigned short sizePassed;
         if (attrType == TypeVarChar) {
             std::string newKeyVarChar = std::string((char*) key+VC_LEN_SIZE, keyLength-VC_LEN_SIZE);
             unsigned currVarCharLen;
@@ -240,27 +265,17 @@ namespace PeterDB {
                     if (rid.pageNum == currPageNum) {
                         memcpy(&currSlotNum, (char*) pageBuffer+currKeyPtr+VC_LEN_SIZE+currVarCharLen+PTR_PN_SIZE, PTR_SN_SIZE);
                         // Equal slotNum is impossible
-                        if (rid.slotNum < currSlotNum) insertHere = true;
+                        if (rid.slotNum < currSlotNum) break;
                     }
-                    else if (rid.pageNum < currPageNum) insertHere = true;
+                    else if (rid.pageNum < currPageNum) break;
                 }
-                else if (newKeyVarChar < currKeyVarChar) insertHere = true;
+                else if (newKeyVarChar < currKeyVarChar) break;
 
-                if (insertHere) {
-                    return insertEntry3(pageBuffer, keyLength, key, rid, currKeyPtr,
-                                        sizeToBeShifted, bytesNeeded, isLeaf);
-                }
-                else {
-                    unsigned short sizePassed;
-                    if (isLeaf) sizePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
-                    else sizePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
-                    sizeToBeShifted -= sizePassed;
-                    currKeyPtr += sizePassed;
-                }
+                if (isLeaf) sizePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
+                else sizePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
+                sizeToBeShifted -= sizePassed;
+                currKeyPtr += sizePassed;
             }
-            // after for loop
-            return insertEntry3(pageBuffer, keyLength, key, rid, currKeyPtr,
-                                sizeToBeShifted, bytesNeeded, isLeaf);
         }
         else if (attrType == TypeInt) {
             int newKeyInt;
@@ -273,27 +288,17 @@ namespace PeterDB {
                     if (rid.pageNum == currPageNum) {
                         memcpy(&currSlotNum, (char*) pageBuffer+currKeyPtr+INT_SIZE+PTR_PN_SIZE, PTR_SN_SIZE);
                         // Equal slotNum is impossible
-                        if (rid.slotNum < currSlotNum) insertHere = true;
+                        if (rid.slotNum < currSlotNum) break;
                     }
-                    else if (rid.pageNum < currPageNum) insertHere = true;
+                    else if (rid.pageNum < currPageNum) break;
                 }
-                else if (newKeyInt < currKeyInt) insertHere = true;
+                else if (newKeyInt < currKeyInt) break;
 
-                if (insertHere) {
-                    return insertEntry3(pageBuffer, keyLength, key, rid, currKeyPtr,
-                                        sizeToBeShifted, bytesNeeded, isLeaf);
-                }
-                else {
-                    unsigned short sizePassed;
-                    if (isLeaf) sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
-                    else sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
-                    sizeToBeShifted -= sizePassed;
-                    currKeyPtr += sizePassed;
-                }
+                if (isLeaf) sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
+                else sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
+                sizeToBeShifted -= sizePassed;
+                currKeyPtr += sizePassed;
             }
-            // after for loop
-            return insertEntry3(pageBuffer, keyLength, key, rid, currKeyPtr,
-                                sizeToBeShifted, bytesNeeded, isLeaf);
         }
         else {
             float newKeyFlt;
@@ -306,38 +311,32 @@ namespace PeterDB {
                     if (rid.pageNum == currPageNum) {
                         memcpy(&currSlotNum, (char*) pageBuffer+currKeyPtr+FLT_SIZE+PTR_PN_SIZE, PTR_SN_SIZE);
                         // Equal slotNum is impossible
-                        if (rid.slotNum < currSlotNum) insertHere = true;
+                        if (rid.slotNum < currSlotNum) break;
                     }
-                    else if (rid.pageNum < currPageNum) insertHere = true;
+                    else if (rid.pageNum < currPageNum) break;
                 }
-                else if (newKeyFlt < currKeyFlt) insertHere = true;
+                else if (newKeyFlt < currKeyFlt) break;
 
-                if (insertHere) {
-                    return insertEntry3(pageBuffer, keyLength, key, rid, currKeyPtr,
-                                        sizeToBeShifted, bytesNeeded, isLeaf);
-                }
-                else {
-                    unsigned short sizePassed;
-                    if (isLeaf) sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
-                    else sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
-                    sizeToBeShifted -= sizePassed;
-                    currKeyPtr += sizePassed;
-                }
+                if (isLeaf) sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
+                else sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
+                sizeToBeShifted -= sizePassed;
+                currKeyPtr += sizePassed;
             }
-            // after for loop
-            return insertEntry3(pageBuffer, keyLength, key, rid, currKeyPtr,
-                                sizeToBeShifted, bytesNeeded, isLeaf);
         }
+        return insertEntry3(pageBuffer, key, currKeyPtr, sizeToBeShifted, bytesNeeded);
     }
 
-    RC IndexManager::insertEntry3(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
-                                  short currKeyPtr, short sizeToBeShifted, unsigned short bytesNeeded, bool isLeaf) {
-        shiftKey(pageBuffer, currKeyPtr, sizeToBeShifted, bytesNeeded);
-        memcpy((char*) pageBuffer+currKeyPtr, (char*) key, keyLength);
-        if (isLeaf) {
-            memcpy((char*) pageBuffer+currKeyPtr+keyLength, &rid.pageNum, PTR_PN_SIZE);
-            memcpy((char*) pageBuffer+currKeyPtr+keyLength+PTR_PN_SIZE, &rid.slotNum, PTR_SN_SIZE);
-        }
+    RC IndexManager::insertEntry3(void* pageBuffer, const void *key, //unsigned keyLength, const RID &rid,
+                                  unsigned short currKeyPtr, unsigned short sizeToBeShifted, unsigned short bytesNeeded//, bool isLeaf
+                                  ) {
+        //shiftKey(pageBuffer, currKeyPtr, sizeToBeShifted, bytesNeeded);
+        memcpy((char*) pageBuffer+currKeyPtr+bytesNeeded, (char*) pageBuffer+currKeyPtr, sizeToBeShifted);
+        memcpy((char*) pageBuffer+currKeyPtr, (char*) key, bytesNeeded);
+        //memcpy((char*) pageBuffer+currKeyPtr, (char*) key, keyLength);
+        //if (isLeaf) {
+        //    memcpy((char*) pageBuffer+currKeyPtr+keyLength, &rid.pageNum, PTR_PN_SIZE);
+        //    memcpy((char*) pageBuffer+currKeyPtr+keyLength+PTR_PN_SIZE, &rid.slotNum, PTR_SN_SIZE);
+        //}
         return 0;
     }
 
@@ -421,13 +420,17 @@ namespace PeterDB {
         return 0;
     }
 
-    RC IndexManager::splitNode(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned keyLength,
-                               AttrType attrType, const void *key, const RID &rid, void* &newChildEntry,
-                               unsigned pageNum, unsigned short bytesNeeded,unsigned short freeBytes,
-                               unsigned short numKeys, bool isLeaf, bool isRoot) {
+    RC IndexManager::splitNode(IXFileHandle &ixFileHandle, void* pageBuffer, //unsigned keyLength,
+                               const void *key, //const RID &rid,
+                               unsigned short bytesNeeded,
+                               void* &newChildEntry,
+                               unsigned pageNum, unsigned short freeBytes,
+                               unsigned short numKeys, AttrType attrType, bool isLeaf, bool isRoot) {
         void* hugePageBuffer = malloc(2*PAGE_SIZE);
         memcpy(hugePageBuffer, pageBuffer, PAGE_SIZE);
-        RC errCode = insertEntry2(hugePageBuffer, keyLength, key, rid, bytesNeeded, freeBytes, numKeys, attrType, isLeaf);
+        RC errCode = insertEntry2(hugePageBuffer, //keyLength,
+                                  key, //rid,
+                                  bytesNeeded, freeBytes, numKeys, attrType, isLeaf);
         if(errCode != 0) return errCode;
         std::cout << "Inside splitNode, after insert entry into huge buffer" << std::endl;
 
@@ -449,12 +452,12 @@ namespace PeterDB {
             for (keyIdx = 0; keyIdx < numKeys+1; keyIdx++) {
                 memcpy(&currVarCharLen, (char*) hugePageBuffer+currKeyPtr, VC_LEN_SIZE);
                 std::cout << "Inside splitNode finding split point, currVarCharLen is " << currVarCharLen << std::endl;
-                if (isLeaf) sizeToBePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
-                else sizeToBePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
+                if (isLeaf) sizeToBePassed = VC_LEN_SIZE+currVarCharLen+PTR_PN_SIZE+PTR_SN_SIZE;
+                else sizeToBePassed = VC_LEN_SIZE+currVarCharLen+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
 
                 if (sizeToBeCopied < ORDER) {
                     unsigned short leftSiblingFreeBytes;
-                    memcpy((char*)pageBuffer, (char*)hugePageBuffer, PAGE_SIZE-F_SIZE-N_SIZE-NXT_PN_SIZE);
+                    memcpy((char*) pageBuffer, (char*) hugePageBuffer, PAGE_SIZE-F_SIZE-N_SIZE-NXT_PN_SIZE);
                     setNumKeys(pageBuffer, keyIdx);
                     if (isLeaf) leftSiblingFreeBytes = PAGE_SIZE-currKeyPtr-F_SIZE-N_SIZE-NXT_PN_SIZE;
                     else leftSiblingFreeBytes = PAGE_SIZE-currKeyPtr-F_SIZE-N_SIZE;
@@ -479,7 +482,7 @@ namespace PeterDB {
             for (keyIdx = 0; keyIdx < numKeys+1; keyIdx++) {
                 if (sizeToBeCopied < ORDER) {
                     unsigned short leftSiblingFreeBytes;
-                    memcpy((char*)pageBuffer, (char*)hugePageBuffer, PAGE_SIZE-F_SIZE-N_SIZE-NXT_PN_SIZE);
+                    memcpy((char*) pageBuffer, (char*) hugePageBuffer, PAGE_SIZE-F_SIZE-N_SIZE-NXT_PN_SIZE);
                     setNumKeys(pageBuffer, keyIdx);
                     if (isLeaf) leftSiblingFreeBytes = PAGE_SIZE-currKeyPtr-F_SIZE-N_SIZE-NXT_PN_SIZE;
                     else leftSiblingFreeBytes = PAGE_SIZE-currKeyPtr-F_SIZE-N_SIZE;
@@ -792,7 +795,7 @@ namespace PeterDB {
         if (lowKey == NULL){
             if (attrType == TypeVarChar) {
                 unsigned attrLenth = attribute.length;
-                //TO DO
+                //TODO
             }
             else if (attrType == TypeInt) this->lowKey = &minInt;
             else this->lowKey = &minFlt;
@@ -802,7 +805,7 @@ namespace PeterDB {
         if (highKey == NULL){
             if (attrType == TypeVarChar) {
                 unsigned attrLenth = attribute.length;
-                //TO DO
+                //TODO
             }
             else if (attrType == TypeInt) this->highKey = &maxInt;
             else this->highKey = &maxFlt;
@@ -908,7 +911,6 @@ namespace PeterDB {
                         memcpy(&slotNum, (char* )currPageBuffer + ixCurrKeyPtr + INT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
                         ixCurrKeyPtr += INT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
                         std::cout << "Inside getNextEntry, in preparing int, pageNum is " << pageNum << " slotNum is " << slotNum <<" key is "<< *(int*)key<< std::endl;
-
                     }
                     else{
                         return IX_EOF;
@@ -980,7 +982,7 @@ namespace PeterDB {
                         unsigned short sizePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
                         currKeyPtr += sizePassed;
                     }
-                    memcpy(&pageNumTobeScanned, (char *)currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
+                    memcpy(&pageNumTobeScanned, (char*) currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
                     RC errCode = ixFileHandle->fileHandle.readPage(pageNumTobeScanned, currPageBuffer);
                     if (errCode != 0) return errCode;
                     isLeaf = ix.getIsLeaf(currPageBuffer);
@@ -1002,7 +1004,7 @@ namespace PeterDB {
                         unsigned short sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
                         currKeyPtr += sizePassed;
                     }
-                    memcpy(&pageNumTobeScanned, (char *)currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
+                    memcpy(&pageNumTobeScanned, (char*) currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
                     RC errCode = ixFileHandle->fileHandle.readPage(pageNumTobeScanned, currPageBuffer);
                     if (errCode != 0) return errCode;
                     isLeaf = ix.getIsLeaf(currPageBuffer);
@@ -1024,7 +1026,7 @@ namespace PeterDB {
                         unsigned short sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
                         currKeyPtr += sizePassed;
                     }
-                    memcpy(&pageNumTobeScanned, (char *)currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
+                    memcpy(&pageNumTobeScanned, (char*) currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
                     RC errCode = ixFileHandle->fileHandle.readPage(pageNumTobeScanned, currPageBuffer);
                     if (errCode != 0) return errCode;
                     isLeaf = ix.getIsLeaf(currPageBuffer);
@@ -1045,7 +1047,7 @@ namespace PeterDB {
                         if (lowKeyVarChar <= currKeyVarChar) break;
                     }
                     else {
-                        if (lowKeyVarChar < currKeyVarChar)  break;
+                        if (lowKeyVarChar < currKeyVarChar) break;
                     }
                     unsigned short sizePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
                     currKeyPtr += sizePassed;
@@ -1070,7 +1072,7 @@ namespace PeterDB {
                         if (lowKeyInt <= currKeyInt) break;
                     }
                     else {
-                        if (lowKeyInt < currKeyInt)  break;
+                        if (lowKeyInt < currKeyInt) break;
                     }
                     unsigned short sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
                     currKeyPtr += sizePassed;
@@ -1081,7 +1083,6 @@ namespace PeterDB {
                     memcpy(&pageNum, (char* )currPageBuffer + currKeyPtr + INT_SIZE, PTR_PN_SIZE);
                     memcpy(&slotNum, (char* )currPageBuffer + currKeyPtr + INT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
                     ixCurrKeyPtr = currKeyPtr + INT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
-
                 }
             }
             else {
