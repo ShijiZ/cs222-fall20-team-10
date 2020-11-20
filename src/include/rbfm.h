@@ -60,61 +60,7 @@ namespace PeterDB {
         NO_OP       // no condition
     } CompOp;
 
-
-    /********************************************************************
-    * The scan iterator is NOT required to be implemented for Project 1 *
-    ********************************************************************/
-
-# define RBFM_EOF (-1)  // end of a scan operator
-
-    //  RBFM_ScanIterator is an iterator to go through records
-    //  The way to use it is like the following:
-    //  RBFM_ScanIterator rbfmScanIterator;
-    //  rbfm.open(..., rbfmScanIterator);
-    //  while (rbfmScanIterator(rid, data) != RBFM_EOF) {
-    //    process the data;
-    //  }
-    //  rbfmScanIterator.close();
-
-    class RBFM_ScanIterator {
-    public:
-        RBFM_ScanIterator() = default;
-
-        ~RBFM_ScanIterator() = default;
-
-        // Never keep the results in the memory. When getNextRecord() is called,
-        // a satisfying record needs to be fetched from the file.
-        // "data" follows the same format as RecordBasedFileManager::insertRecord().
-
-        RC getNextRecord(RID &rid, void *data);
-
-        RC close();
-
-        RC initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
-                      const std::string &conditionAttribute, const CompOp compOp, const void *value,
-                      const std::vector<std::string> &attributeNames);
-
-        FileHandle fileHandle;
-
-    private:
-        std::vector<Attribute> recordDescriptor;
-        CompOp compOp;
-        const void* value;
-        std::vector<std::string> attributeNames;
-        int currPageNum;
-        short currSlotNum;
-        std::vector<short> targetAttrIdxs;
-        short conditionAttrIdx;
-        AttrType conditionType;
-
-        bool findCondAttr(const void *checkAttr, short attrLen);
-
-        RC parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs);
-
-        unsigned short getNumSlots(void* pageBuffer);
-
-        void parseRecord(void* pageBuffer, unsigned short slotNum, short& recordOffset, short& recordLength);
-    };
+    class RBFM_ScanIterator;
 
     class RecordBasedFileManager {
     public:
@@ -182,6 +128,25 @@ namespace PeterDB {
                 const std::vector<std::string> &attributeNames, // a list of projected attributes
                 RBFM_ScanIterator &rbfm_ScanIterator);
 
+        /*********************************************/
+        /*****    Getter and Setter functions  *******/
+        /*********************************************/
+        unsigned short getNumSlots(void* pageBuffer);
+
+        unsigned short getFreeBytes(void* pageBuffer);
+
+        short getRecordLength(void* pageBuffer, unsigned short slotNum);
+
+        short getRecordOffset(void* pageBuffer, unsigned short slotNum);
+
+        void setNumSlots(void* pageBuffer, unsigned short numSlots);
+
+        void setFreeBytes(void* pageBuffer, unsigned short freeBytes);
+
+        void setRecordLength(void* pageBuffer, unsigned short slotNum, short recordLength);
+
+        void setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset);
+
     private:
         PagedFileManager* pfm;
 
@@ -208,25 +173,6 @@ namespace PeterDB {
 
         RC findRecord(FileHandle &fileHandle, void *pageBuffer, short &recordOffset, short &recordLength, RID &rid);
 
-        /*********************************************/
-        /*****    Getter and Setter functions  *******/
-        /*********************************************/
-        unsigned short getNumSlots(void* pageBuffer);
-
-        unsigned short getFreeBytes(void* pageBuffer);
-
-        short getRecordLength(void* pageBuffer, unsigned short slotNum);
-
-        short getRecordOffset(void* pageBuffer, unsigned short slotNum);
-
-        void setNumSlots(void* pageBuffer, unsigned short numSlots);
-
-        void setFreeBytes(void* pageBuffer, unsigned short freeBytes);
-
-        void setRecordLength(void* pageBuffer, unsigned short slotNum, short recordLength);
-
-        void setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset);
-
     protected:
         RecordBasedFileManager();                                                   // Prevent construction
 
@@ -236,6 +182,59 @@ namespace PeterDB {
 
         RecordBasedFileManager &operator=(const RecordBasedFileManager &) = default; // Prevent assignment
 
+    };
+
+    /********************************************************************
+    * The scan iterator is NOT required to be implemented for Project 1 *
+    ********************************************************************/
+
+# define RBFM_EOF (-1)  // end of a scan operator
+
+    //  RBFM_ScanIterator is an iterator to go through records
+    //  The way to use it is like the following:
+    //  RBFM_ScanIterator rbfmScanIterator;
+    //  rbfm.open(..., rbfmScanIterator);
+    //  while (rbfmScanIterator(rid, data) != RBFM_EOF) {
+    //    process the data;
+    //  }
+    //  rbfmScanIterator.close();
+
+    class RBFM_ScanIterator {
+    public:
+        RBFM_ScanIterator() = default;
+
+        ~RBFM_ScanIterator() = default;
+
+        RC initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+                      const std::string &conditionAttribute, const CompOp compOp, const void *value,
+                      const std::vector<std::string> &attributeNames, RecordBasedFileManager* rbfm);
+
+        // Never keep the results in the memory. When getNextRecord() is called,
+        // a satisfying record needs to be fetched from the file.
+        // "data" follows the same format as RecordBasedFileManager::insertRecord().
+
+        RC getNextRecord(RID &rid, void *data);
+
+        RC close();
+
+        FileHandle fileHandle;
+
+    private:
+        RecordBasedFileManager* rbfm;
+
+        std::vector<Attribute> recordDescriptor;
+        CompOp compOp;
+        const void* value;
+        std::vector<std::string> attributeNames;
+        int currPageNum;
+        short currSlotNum;
+        std::vector<short> targetAttrIdxs;
+        short conditionAttrIdx;
+        AttrType conditionType;
+
+        RC parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs);
+
+        bool findCondAttr(const void *checkAttr, short attrLen);
     };
 
 } // namespace PeterDB

@@ -107,19 +107,6 @@ namespace PeterDB {
         }
         //std::cout << "inside deleteEntry, pageNumTobeDeleted is "<<pageNumTobeDeleted<<std::endl;
 
-        // TODO: need to confirm: In case of duplicate keys already been deleted, need to find next page
-        int nextPageNum;
-        while (numKeys == 0){
-            nextPageNum = getNextPageNum(pageBuffer);
-            if (nextPageNum == -1)  return -1;
-
-            RC errCode = ixFileHandle.fileHandle.readPage(nextPageNum, pageBuffer);
-            if (errCode != 0) return errCode;
-
-            pageNumTobeDeleted = nextPageNum;
-            numKeys = getNumKeys(pageBuffer);
-        }
-
         unsigned short currKeyPtr = IS_LEAF_SIZE;
         unsigned currPageNum;
         unsigned short currSlotNum;
@@ -237,9 +224,9 @@ namespace PeterDB {
         return printNode(ixFileHandle, attribute.type, rootPageNum, 0, out);
     }
 
-    /**********************************/
-    /*****    Helper functions  *******/
-    /**********************************/
+    /*********************************************/
+    /*****    Getter and Setter functions  *******/
+    /*********************************************/
     unsigned short IndexManager::getKeyLength(const void *key, AttrType attrType) {
         unsigned short keyLength;
         if (attrType == TypeVarChar) {
@@ -265,6 +252,49 @@ namespace PeterDB {
         return rootPageNum;
     }
 
+    bool IndexManager::getIsLeaf(void* pageBuffer) const {
+        bool isLeaf;
+        memcpy(&isLeaf, (char*) pageBuffer, IS_LEAF_SIZE);
+        return isLeaf;
+    }
+
+    unsigned short IndexManager::getNumKeys(void* pageBuffer) const {
+        unsigned short numKeys;
+        memcpy(&numKeys, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
+        return numKeys;
+    }
+
+    unsigned short IndexManager::getFreeBytes(void* pageBuffer) const {
+        unsigned short freeBytes;
+        memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-F_SIZE, F_SIZE);
+        return freeBytes;
+    }
+
+    int IndexManager::getNextPageNum(void* pageBuffer) const {
+        int nextPageNum;
+        memcpy(&nextPageNum, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE-NXT_PN_SIZE, NXT_PN_SIZE);
+        return nextPageNum;
+    }
+
+    void IndexManager::setIsLeaf(void* pageBuffer, bool isLeaf) {
+        memcpy((char*) pageBuffer, &isLeaf, IS_LEAF_SIZE);
+    }
+
+    void IndexManager::setNumKeys(void* pageBuffer, unsigned short numKeys) {
+        memcpy((char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, &numKeys, N_SIZE);
+    }
+
+    void IndexManager::setFreeBytes(void* pageBuffer, unsigned short freeBytes) {
+        memcpy((char*) pageBuffer+PAGE_SIZE-F_SIZE, &freeBytes, F_SIZE);
+    }
+
+    void IndexManager::setNextPageNum(void* pageBuffer, int nextPageNum) {
+        memcpy((char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE-NXT_PN_SIZE, &nextPageNum, NXT_PN_SIZE);
+    }
+
+    /**********************************/
+    /*****    Helper functions  *******/
+    /**********************************/
     RC IndexManager::insertEntryRec(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum,
                                   unsigned keyLength, AttrType attrType, const void *key,
                                   const RID &rid, void* &newChildEntry, unsigned rootPageNum) {
@@ -937,402 +967,258 @@ namespace PeterDB {
         return 0;
     }
 
-    /*********************************************/
-    /*****    Getter and Setter functions  *******/
-    /*********************************************/
-    bool IndexManager::getIsLeaf(void* pageBuffer) const {
-        bool isLeaf;
-        memcpy(&isLeaf, (char*) pageBuffer, IS_LEAF_SIZE);
-        return isLeaf;
-    }
-
-    unsigned short IndexManager::getNumKeys(void* pageBuffer) const {
-        unsigned short numKeys;
-        memcpy(&numKeys, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
-        return numKeys;
-    }
-
-    unsigned short IndexManager::getFreeBytes(void* pageBuffer) const {
-        unsigned short freeBytes;
-        memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-F_SIZE, F_SIZE);
-        return freeBytes;
-    }
-
-    int IndexManager::getNextPageNum(void* pageBuffer) const {
-        int nextPageNum;
-        memcpy(&nextPageNum, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE-NXT_PN_SIZE, NXT_PN_SIZE);
-        return nextPageNum;
-    }
-
-    void IndexManager::setIsLeaf(void* pageBuffer, bool isLeaf) {
-        memcpy((char*) pageBuffer, &isLeaf, IS_LEAF_SIZE);
-    }
-
-    void IndexManager::setNumKeys(void* pageBuffer, unsigned short numKeys) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, &numKeys, N_SIZE);
-    }
-
-    void IndexManager::setFreeBytes(void* pageBuffer, unsigned short freeBytes) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-F_SIZE, &freeBytes, F_SIZE);
-    }
-
-    void IndexManager::setNextPageNum(void* pageBuffer, int nextPageNum) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE-NXT_PN_SIZE, &nextPageNum, NXT_PN_SIZE);
-    }
-
     /*************************************************/
     /*****    functions of ix_Scan_Iterator  *******/
     /*************************************************/
     RC IX_ScanIterator::initialize(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
                                    bool lowKeyInclusive, bool highKeyInclusive, IndexManager* ix){
-        //IndexManager &ix = IndexManager::instance();
         this->ix = ix;
         attrType = attribute.type;
 
-        if (lowKey == NULL){
-            if (attrType == TypeVarChar) {
-                unsigned attrLenth = attribute.length;
-                //TODO
-            }
-            else if (attrType == TypeInt) this->lowKey = &minInt;
-            else this->lowKey = &minFlt;
-        }
+        if (lowKey == NULL || lowKey == nullptr) this->lowKey = nullptr;
         else this->lowKey = lowKey;
-
-        if (highKey == NULL){
-            if (attrType == TypeVarChar) {
-                unsigned attrLenth = attribute.length;
-                //TODO
-            }
-            else if (attrType == TypeInt) this->highKey = &maxInt;
-            else this->highKey = &maxFlt;
-        }
+        if (highKey == NULL || highKey == nullptr) this->highKey = nullptr;
         else this->highKey = highKey;
 
         this->lowKeyInclusive = lowKeyInclusive;
         this->highKeyInclusive = highKeyInclusive;
         this->ixFileHandle = &ixFileHandle;
-        this->ixCurrKeyPtr = 0;
         this->isFirstGetNextEntry = true;
 
-        int rootPageNum = this->ix->getRootPageNum(*this->ixFileHandle);
+        unsigned rootPageNum = this->ix->getRootPageNum(*this->ixFileHandle);
         this->currPageBuffer = malloc(PAGE_SIZE);
         return this->ixFileHandle->fileHandle.readPage(rootPageNum, currPageBuffer);
     }
 
     RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
         if (ixFileHandle->fileHandle.getNumberOfPages() == 0) return -1;
-        //IndexManager &ix = IndexManager::instance();
         unsigned short numKeys = ix->getNumKeys(currPageBuffer);
-        unsigned lowKeyLength;
-        unsigned highKeyLength;
 
-        if (attrType == TypeVarChar) {
-            memcpy(&lowKeyLength, lowKey, VC_LEN_SIZE);
-            lowKeyLength += VC_LEN_SIZE;
-            memcpy(&highKeyLength, highKey, VC_LEN_SIZE);
-            highKeyLength += VC_LEN_SIZE;
+        // if the first time call getNextEntry, need to find first leaf node from root node
+        if (isFirstGetNextEntry) {
+            int pageNumTobeScanned;
+            //unsigned short currKeyPtr;
+            isFirstGetNextEntry = false;
+
+            bool isLeaf = ix->getIsLeaf(currPageBuffer);
+            while (!isLeaf) {
+                ixCurrKeyPtr = IS_LEAF_SIZE + PTR_PN_SIZE;
+
+                // if lowKey is nullptr, go to the page pointed by left most ptr
+                if (lowKey != nullptr) {
+                    int keyIdx;
+                    RC errCode = findEntryToOutput(keyIdx, numKeys, false);
+                    if (errCode != 0) return errCode;
+                }
+
+                // read pageNumTobeScanned
+                memcpy(&pageNumTobeScanned, (char*) currPageBuffer+ixCurrKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
+                RC errCode = ixFileHandle->fileHandle.readPage(pageNumTobeScanned, currPageBuffer);
+                if (errCode != 0) return errCode;
+
+                isLeaf = ix->getIsLeaf(currPageBuffer);
+                numKeys = ix->getNumKeys(currPageBuffer);
+            }
+
+            // reached leaf node
+            ixCurrKeyPtr = IS_LEAF_SIZE;
+            int keyIdx = -1;
+
+            // if lowKey is nullptr, output the leftmost entry (not violate highKey) directly
+            if (lowKey != nullptr && numKeys != 0) {
+                RC errCode = findEntryToOutput(keyIdx, numKeys, true);
+                if (errCode != 0) return errCode;
+            }
+
+            // didn't find entry to output on current leaf node
+            if (numKeys == 0 || keyIdx == numKeys) {
+                RC errCode = findNextNonEmptyLeaf();
+                if (errCode != 0) return errCode;
+            }
         }
+        // if not the first time call getNextEntry
         else {
-            lowKeyLength = INT_OR_FLT_SIZE;
-            highKeyLength = INT_OR_FLT_SIZE;
-        }
-
-        unsigned pageNum;
-        unsigned short slotNum;
-        if (!isFirstGetNextEntry) {
+            // freeBytes is a number stored, bytesLeft is the bytes after ixCurrKeyPtr
             unsigned short freeBytes = ix->getFreeBytes(currPageBuffer);
             unsigned short bytesLeft = PAGE_SIZE - ixCurrKeyPtr - NXT_PN_SIZE - N_SIZE - F_SIZE;
             //std::cout << "Inside getNextEntry, freeBytes is " << freeBytes << ", bytesLeft is " << bytesLeft << std::endl;
-            if (freeBytes == bytesLeft){
-                int nextPageNum = ix->getNextPageNum(currPageBuffer);
-                //std::cout << "Inside getNextEntry, nextPageNum is " << nextPageNum << std::endl;
-                if (nextPageNum == -1) return IX_EOF;
-                RC errCode = ixFileHandle->fileHandle.readPage(nextPageNum, currPageBuffer);
+
+            // reached the last entry in leaf node
+            if (freeBytes == bytesLeft) {
+                RC errCode = findNextNonEmptyLeaf();
                 if (errCode != 0) return errCode;
-                numKeys = ix->getNumKeys(currPageBuffer);
-                while(numKeys == 0){
-                    nextPageNum = ix->getNextPageNum(currPageBuffer);
-                    if (nextPageNum == -1)  return IX_EOF;
-                    RC errCode = ixFileHandle->fileHandle.readPage(nextPageNum, currPageBuffer);
-                    if (errCode != 0) return errCode;
-                    numKeys = ix->getNumKeys(currPageBuffer);
-                }
-                //std::cout << "Inside getNextEntry, nextPageNum is " << nextPageNum << std::endl;
-                ixCurrKeyPtr = IS_LEAF_SIZE;
             }
+        }
+
+        // found entry to output (if not violate highKey) on current leaf node
+        if (highKey != nullptr) {
+            // attribute type is varChar
             if (attrType == TypeVarChar) {
+                // generate high key varChar
+                unsigned short highKeyLength = ix->getKeyLength(highKey, attrType);
+                std::string highKeyVarChar = std::string((char*) highKey+VC_LEN_SIZE, highKeyLength-VC_LEN_SIZE);
+
+                // generate current varChar
                 unsigned currVarCharLen;
                 memcpy(&currVarCharLen, (char*) currPageBuffer+ixCurrKeyPtr, VC_LEN_SIZE);
-                std::string currKeyVarChar = std::string((char*) currPageBuffer+ixCurrKeyPtr+VC_LEN_SIZE, currVarCharLen);
-                std::string highKeyVarChar = std::string((char*) highKey+VC_LEN_SIZE, highKeyLength-VC_LEN_SIZE);
-                if (highKeyInclusive){
-                    if (currKeyVarChar <= highKeyVarChar){
-                        memcpy((char* )key,  (char* )currPageBuffer + ixCurrKeyPtr, VC_LEN_SIZE + currVarCharLen);
-                        memcpy(&pageNum, (char* )currPageBuffer + ixCurrKeyPtr + VC_LEN_SIZE + currVarCharLen, PTR_PN_SIZE);
-                        memcpy(&slotNum, (char* )currPageBuffer + ixCurrKeyPtr + VC_LEN_SIZE + currVarCharLen + PTR_PN_SIZE, PTR_SN_SIZE);
-                        ixCurrKeyPtr += VC_LEN_SIZE + currVarCharLen + PTR_PN_SIZE + PTR_SN_SIZE;
-                    }
-                    else{
-                        return IX_EOF;
-                    }
-                }
-                else{
-                    if (currKeyVarChar < highKeyVarChar){
-                        memcpy((char* )key,  (char* )currPageBuffer + ixCurrKeyPtr, VC_LEN_SIZE + currVarCharLen);
-                        memcpy(&pageNum, (char* )currPageBuffer + ixCurrKeyPtr + VC_LEN_SIZE + currVarCharLen, PTR_PN_SIZE);
-                        memcpy(&slotNum, (char* )currPageBuffer + ixCurrKeyPtr + VC_LEN_SIZE + currVarCharLen + PTR_PN_SIZE, PTR_SN_SIZE);
-                        ixCurrKeyPtr += VC_LEN_SIZE + currVarCharLen + PTR_PN_SIZE + PTR_SN_SIZE;
-                    }
-                    else{
-                        return IX_EOF;
-                    }
-                }
-            }
-            else if (attrType == TypeInt) {
-                int currKeyInt;
-                memcpy(&currKeyInt, (char*) currPageBuffer+ixCurrKeyPtr, INT_SIZE);
-                //std::cout << "Inside getNextEntry, in preparing int, currKeyInt is " << currKeyInt << std::endl;
-                int highKeyInt;
-                memcpy(&highKeyInt, (char*) highKey, INT_SIZE);
-                if (highKeyInclusive){
-                    if (currKeyInt <= highKeyInt){
-                        memcpy((char* )key,  (char* )currPageBuffer + ixCurrKeyPtr, INT_SIZE);
-                        memcpy(&pageNum, (char* )currPageBuffer + ixCurrKeyPtr + INT_SIZE, PTR_PN_SIZE);
-                        memcpy(&slotNum, (char* )currPageBuffer + ixCurrKeyPtr + INT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
-                        ixCurrKeyPtr += INT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
-                        //std::cout << "Inside getNextEntry, in preparing int, pageNum is " << pageNum << " slotNum is " << slotNum <<" key is "<< *(int*)key<< std::endl;
-                    }
-                    else{
-                        return IX_EOF;
-                    }
-                }
-                else{
-                    if (currKeyInt < highKeyInt){
-                        memcpy((char* )key,  (char* )currPageBuffer + ixCurrKeyPtr, INT_SIZE);
-                        memcpy(&pageNum, (char* )currPageBuffer + ixCurrKeyPtr + INT_SIZE, PTR_PN_SIZE);
-                        memcpy(&slotNum, (char* )currPageBuffer + ixCurrKeyPtr + INT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
-                        ixCurrKeyPtr += INT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
-                    }
-                    else{
-                        return IX_EOF;
-                    }
-                }
-            }
-            else {
-                float currKeyFlt;
-                memcpy(&currKeyFlt, (char*) currPageBuffer+ixCurrKeyPtr, FLT_SIZE);
-                float highKeyFlt;
-                memcpy(&highKeyFlt, (char*) highKey, INT_SIZE);
-                if (highKeyInclusive){
-                    if (currKeyFlt <= highKeyFlt){
-                        memcpy((char* )key,  (char* )currPageBuffer + ixCurrKeyPtr, FLT_SIZE);
-                        memcpy(&pageNum, (char* )currPageBuffer + ixCurrKeyPtr + FLT_SIZE, PTR_PN_SIZE);
-                        memcpy(&slotNum, (char* )currPageBuffer + ixCurrKeyPtr + FLT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
-                        ixCurrKeyPtr += FLT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
-                    }
-                    else{
-                        return IX_EOF;
-                    }
-                }
-                else{
-                    if (currKeyFlt < highKeyFlt){
-                        memcpy((char* )key,  (char* )currPageBuffer + ixCurrKeyPtr, FLT_SIZE);
-                        memcpy(&pageNum, (char* )currPageBuffer + ixCurrKeyPtr + FLT_SIZE, PTR_PN_SIZE);
-                        memcpy(&slotNum, (char* )currPageBuffer + ixCurrKeyPtr + FLT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
-                        ixCurrKeyPtr += FLT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
-                    }
-                    else{
-                        return IX_EOF;
-                    }
-                }
-            }
-        }
-        // first time call getNextEntry
-        else {
-            //std::cout << "Inside getNextEntry, entered else " << std::endl;
-            int pageNumTobeScanned;
-            unsigned short currKeyPtr;
-            isFirstGetNextEntry = false;
-            bool isLeaf = ix->getIsLeaf(currPageBuffer);
-            while (!isLeaf) {
-                currKeyPtr = IS_LEAF_SIZE + PTR_PN_SIZE;
-                if (attrType == TypeVarChar) {
-                    unsigned currVarCharLen;
-                    std::string lowKeyVarChar = std::string((char*) lowKey+VC_LEN_SIZE, lowKeyLength-VC_LEN_SIZE);
-                    for (int i = 0; i < numKeys; i++) {
-                        memcpy(&currVarCharLen, (char *) currPageBuffer + currKeyPtr, VC_LEN_SIZE);
-                        std::string currKeyVarChar = std::string((char *) currPageBuffer + currKeyPtr + VC_LEN_SIZE,currVarCharLen);
-                        if (lowKeyInclusive) {
-                            if (lowKeyVarChar <= currKeyVarChar) break;
-                        }
-                        else {
-                            if (lowKeyVarChar < currKeyVarChar) break;
-                        }
+                std::string currKeyVarChar = std::string((char*) currPageBuffer + ixCurrKeyPtr + VC_LEN_SIZE, currVarCharLen);
 
-                        unsigned short sizePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
-                        currKeyPtr += sizePassed;
-                    }
-                    memcpy(&pageNumTobeScanned, (char*) currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
-                    RC errCode = ixFileHandle->fileHandle.readPage(pageNumTobeScanned, currPageBuffer);
-                    if (errCode != 0) return errCode;
-                    isLeaf = ix->getIsLeaf(currPageBuffer);
-                    numKeys = ix->getNumKeys(currPageBuffer);
-                }
-                else if (attrType == TypeInt) {
-                    int lowKeyInt;
-                    memcpy(&lowKeyInt, (char*) lowKey, INT_SIZE);
-                    for (int i = 0; i < numKeys; i++) {
-                        int currKeyInt;
-                        memcpy(&currKeyInt, (char*) currPageBuffer+currKeyPtr, INT_SIZE);
-                        if (lowKeyInclusive) {
-                            if (lowKeyInt <= currKeyInt) break;
-                        }
-                        else {
-                            if (lowKeyInt < currKeyInt) break;
-                        }
-
-                        unsigned short sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
-                        currKeyPtr += sizePassed;
-                    }
-                    memcpy(&pageNumTobeScanned, (char*) currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
-                    RC errCode = ixFileHandle->fileHandle.readPage(pageNumTobeScanned, currPageBuffer);
-                    if (errCode != 0) return errCode;
-                    isLeaf = ix->getIsLeaf(currPageBuffer);
-                    numKeys = ix->getNumKeys(currPageBuffer);
+                if (highKeyInclusive) {
+                    if (currKeyVarChar > highKeyVarChar) return IX_EOF;
                 }
                 else {
-                    float lowKeyFlt;
-                    memcpy(&lowKeyFlt, (char*) lowKey, FLT_SIZE);
-                    for (int i = 0; i < numKeys; i++) {
-                        int currKeyFlt;
-                        memcpy(&currKeyFlt, (char*) currPageBuffer+currKeyPtr, FLT_SIZE);
-                        if (lowKeyInclusive) {
-                            if (lowKeyFlt <= currKeyFlt) break;
-                        }
-                        else {
-                            if (lowKeyFlt < currKeyFlt) break;
-                        }
-
-                        unsigned short sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
-                        currKeyPtr += sizePassed;
-                    }
-                    memcpy(&pageNumTobeScanned, (char*) currPageBuffer+currKeyPtr-PTR_PN_SIZE, PTR_PN_SIZE);
-                    RC errCode = ixFileHandle->fileHandle.readPage(pageNumTobeScanned, currPageBuffer);
-                    if (errCode != 0) return errCode;
-                    isLeaf = ix->getIsLeaf(currPageBuffer);
-                    numKeys = ix->getNumKeys(currPageBuffer);
+                    if (currKeyVarChar >= highKeyVarChar) return IX_EOF;
                 }
             }
-            //std::cout << "Inside getNextEntry, attrType is " << attrType << std::endl;
-            // after while find corresponding leaf node
-            currKeyPtr = IS_LEAF_SIZE;
-            int keyIdx;
-            if (attrType == TypeVarChar) {
-                unsigned currVarCharLen;
-                std::string lowKeyVarChar = std::string((char*) lowKey+VC_LEN_SIZE, lowKeyLength-VC_LEN_SIZE);
-                for (keyIdx = 0; keyIdx < numKeys; keyIdx++) {
-                    memcpy(&currVarCharLen, (char *) currPageBuffer + currKeyPtr, VC_LEN_SIZE);
-                    std::string currKeyVarChar = std::string((char *) currPageBuffer + currKeyPtr + VC_LEN_SIZE,currVarCharLen);
-                    if (lowKeyInclusive){
-                        if (lowKeyVarChar <= currKeyVarChar) break;
-                    }
-                    else {
-                        if (lowKeyVarChar < currKeyVarChar) break;
-                    }
-                    unsigned short sizePassed = currVarCharLen+VC_LEN_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
-                    currKeyPtr += sizePassed;
-                }
-                if (keyIdx < numKeys){
-                    memcpy((char* )key,  (char* )currPageBuffer + currKeyPtr, VC_LEN_SIZE + currVarCharLen);
-                    memcpy(&pageNum, (char* )currPageBuffer + currKeyPtr + VC_LEN_SIZE + currVarCharLen, PTR_PN_SIZE);
-                    memcpy(&slotNum, (char* )currPageBuffer + currKeyPtr + VC_LEN_SIZE + currVarCharLen + PTR_PN_SIZE, PTR_SN_SIZE);
-                    ixCurrKeyPtr = currKeyPtr + VC_LEN_SIZE + currVarCharLen + PTR_PN_SIZE + PTR_SN_SIZE;;
-                }
-            }
+            // attribute type is int
             else if (attrType == TypeInt) {
-                //std::cout << "Inside getNextEntry, prepare output Int, lowKey is " << *(int*) this->lowKey << std::endl;
-                int lowKeyInt = *(int*) this->lowKey;
+                // generate high key int
+                int highKeyInt = *(int*) this->highKey;
+
+                // generate current int
                 int currKeyInt;
-                for (keyIdx = 0; keyIdx < numKeys; keyIdx++) {
-                    memcpy(&currKeyInt, (char*) currPageBuffer+currKeyPtr, INT_SIZE);
-                    //std::cout << "Inside getNextEntry, prepare output Int, lowKeyInt is " << lowKeyInt << " currKeyInt is " << currKeyInt << std::endl;
-                    if (lowKeyInclusive){
-                        if (lowKeyInt <= currKeyInt) break;
-                    }
-                    else {
-                        if (lowKeyInt < currKeyInt) break;
-                    }
-                    unsigned short sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
-                    currKeyPtr += sizePassed;
+                memcpy(&currKeyInt, (char*) currPageBuffer+ixCurrKeyPtr, INT_SIZE);
+
+                if (highKeyInclusive) {
+                    if (currKeyInt > highKeyInt) return IX_EOF;
                 }
-                //std::cout << "Inside getNextEntry, prepare output Int, after for loop " << std::endl;
-                if (keyIdx < numKeys){
-                    memcpy((char* )key,  (char* )currPageBuffer + currKeyPtr, INT_SIZE);
-                    memcpy(&pageNum, (char* )currPageBuffer + currKeyPtr + INT_SIZE, PTR_PN_SIZE);
-                    memcpy(&slotNum, (char* )currPageBuffer + currKeyPtr + INT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
-                    ixCurrKeyPtr = currKeyPtr + INT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
+                else {
+                    if (currKeyInt >= highKeyInt) return IX_EOF;
                 }
             }
+            // attribute type is float
             else {
-                float lowKeyFlt;
-                memcpy(&lowKeyFlt, (char*) lowKey, FLT_SIZE);
+                // generate high key float
+                float highKeyFlt = *(float*) this->highKey;
+
+                // generate current float
                 float currKeyFlt;
-                for (keyIdx = 0; keyIdx < numKeys; keyIdx++) {
-                    memcpy(&currKeyFlt, (char*) currPageBuffer+currKeyPtr, FLT_SIZE);
-                    if (lowKeyInclusive){
-                        if (lowKeyFlt <= currKeyFlt) break;
-                    }
-                    else {
-                        if (lowKeyFlt < currKeyFlt) break;
-                    }
-                    unsigned short sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
-                    currKeyPtr += sizePassed;
+                memcpy(&currKeyFlt, (char*) currPageBuffer+ixCurrKeyPtr, FLT_SIZE);
+
+                if (highKeyInclusive) {
+                    if (currKeyFlt > highKeyFlt) return IX_EOF;
                 }
-                if (keyIdx < numKeys){
-                    memcpy((char* )key,  (char* )currPageBuffer + currKeyPtr, FLT_SIZE);
-                    memcpy(&pageNum, (char* )currPageBuffer + currKeyPtr + FLT_SIZE, PTR_PN_SIZE);
-                    memcpy(&slotNum, (char* )currPageBuffer + currKeyPtr + FLT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
-                    ixCurrKeyPtr = currKeyPtr + FLT_SIZE + PTR_PN_SIZE + PTR_SN_SIZE;
-                }
-            }
-            //std::cout << "Inside getNextEntry, before test keyIdx " << std::endl;
-            if (keyIdx == numKeys) {
-                int nextPageNum = ix->getNextPageNum(currPageBuffer);
-                if (nextPageNum == -1) return IX_EOF; // not found
-                RC errCode = ixFileHandle->fileHandle.readPage(nextPageNum, currPageBuffer);
-                if (errCode != 0) return errCode;
-                numKeys = ix->getNumKeys(currPageBuffer);
-                while(numKeys == 0){
-                    nextPageNum = ix->getNextPageNum(currPageBuffer);
-                    if (nextPageNum == -1)  return IX_EOF;
-                    RC errCode = ixFileHandle->fileHandle.readPage(nextPageNum, currPageBuffer);
-                    if (errCode != 0) return errCode;
-                    numKeys = ix->getNumKeys(currPageBuffer);
-                }
-                if (attrType == TypeVarChar){
-                    unsigned varCharlen;
-                    memcpy(&varCharlen, (char* )currPageBuffer + IS_LEAF_SIZE, VC_LEN_SIZE);
-                    memcpy(&pageNum, (char* )currPageBuffer + IS_LEAF_SIZE + VC_LEN_SIZE + varCharlen, PTR_PN_SIZE);
-                    memcpy(&slotNum, (char* )currPageBuffer + IS_LEAF_SIZE + VC_LEN_SIZE + varCharlen + PTR_PN_SIZE, PTR_SN_SIZE);
-                    memcpy((char* )key,  (char* )currPageBuffer + IS_LEAF_SIZE, VC_LEN_SIZE + varCharlen);
-                    ixCurrKeyPtr = IS_LEAF_SIZE + VC_LEN_SIZE + varCharlen + PTR_SN_SIZE + PTR_PN_SIZE;
-                }
-                else{
-                    memcpy(&pageNum, (char* )currPageBuffer + IS_LEAF_SIZE + INT_OR_FLT_SIZE, PTR_PN_SIZE);
-                    memcpy(&slotNum, (char* )currPageBuffer + IS_LEAF_SIZE + INT_OR_FLT_SIZE + PTR_PN_SIZE, PTR_SN_SIZE);
-                    memcpy((char* )key,  (char* )currPageBuffer + IS_LEAF_SIZE, INT_OR_FLT_SIZE);
-                    ixCurrKeyPtr = IS_LEAF_SIZE + INT_OR_FLT_SIZE + PTR_SN_SIZE + PTR_PN_SIZE;
+                else {
+                    if (currKeyFlt >= highKeyFlt) return IX_EOF;
                 }
             }
         }
-        rid.pageNum = pageNum;
-        rid.slotNum = slotNum;
+
+        unsigned short keyLength = ix->getKeyLength((char*) currPageBuffer+ixCurrKeyPtr, attrType);
+        memcpy((char*) key, (char*) currPageBuffer+ixCurrKeyPtr, keyLength);
+        memcpy(&rid.pageNum, (char*) currPageBuffer+ixCurrKeyPtr+keyLength, PTR_PN_SIZE);
+        memcpy(&rid.slotNum, (char*) currPageBuffer+ixCurrKeyPtr+keyLength+PTR_PN_SIZE, PTR_SN_SIZE);
+        ixCurrKeyPtr += keyLength+PTR_PN_SIZE+PTR_SN_SIZE;
         return 0;
     }
 
     RC IX_ScanIterator::close() {
         free(currPageBuffer);
+        return 0;
+    }
+
+    RC IX_ScanIterator::findNextNonEmptyLeaf() {
+        int nextPageNum = ix->getNextPageNum(currPageBuffer);
+        if (nextPageNum == -1) return IX_EOF;
+
+        RC errCode = ixFileHandle->fileHandle.readPage(nextPageNum, currPageBuffer);
+        if (errCode != 0) return errCode;
+
+        unsigned short numKeys = ix->getNumKeys(currPageBuffer);
+
+        // find the next first leaf node that is not empty
+        while (numKeys == 0){
+            nextPageNum = ix->getNextPageNum(currPageBuffer);
+            if (nextPageNum == -1)  return IX_EOF;
+
+            RC errCode = ixFileHandle->fileHandle.readPage(nextPageNum, currPageBuffer);
+            if (errCode != 0) return errCode;
+
+            numKeys = ix->getNumKeys(currPageBuffer);
+        }
+
+        ixCurrKeyPtr = IS_LEAF_SIZE;
+        return 0;
+    }
+
+    RC IX_ScanIterator::findEntryToOutput(int& keyIdx, unsigned short numKeys, bool isLeaf) {
+        // attribute type is varChar
+        if (attrType == TypeVarChar) {
+            // generate low key varChar
+            unsigned short lowKeyLength = ix->getKeyLength(lowKey, attrType);
+            std::string lowKeyVarChar = std::string((char*) lowKey+VC_LEN_SIZE, lowKeyLength-VC_LEN_SIZE);
+
+            unsigned currVarCharLen;
+            for (keyIdx = 0; keyIdx < numKeys; keyIdx++) {
+                // generate current varChar
+                memcpy(&currVarCharLen, (char*) currPageBuffer+ixCurrKeyPtr, VC_LEN_SIZE);
+                std::string currKeyVarChar = std::string((char*) currPageBuffer+ixCurrKeyPtr+VC_LEN_SIZE, currVarCharLen);
+
+                // break if found entry to output
+                if (lowKeyInclusive){
+                    if (lowKeyVarChar <= currKeyVarChar) break;
+                }
+                else {
+                    if (lowKeyVarChar < currKeyVarChar) break;
+                }
+
+                // not found, go to next varChar
+                unsigned short sizePassed;
+                if (isLeaf) sizePassed = VC_LEN_SIZE+currVarCharLen+PTR_PN_SIZE+PTR_SN_SIZE;
+                else sizePassed = VC_LEN_SIZE+currVarCharLen+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
+                ixCurrKeyPtr += sizePassed;
+            }
+        }
+            // attribute type is int
+        else if (attrType == TypeInt) {
+            // generate low key int
+            int lowKeyInt = *(int*) this->lowKey;
+
+            int currKeyInt;
+            for (keyIdx = 0; keyIdx < numKeys; keyIdx++) {
+                // generate current int
+                memcpy(&currKeyInt, (char*) currPageBuffer+ixCurrKeyPtr, INT_SIZE);
+
+                // break if found entry to output
+                if (lowKeyInclusive){
+                    if (lowKeyInt <= currKeyInt) break;
+                }
+                else {
+                    if (lowKeyInt < currKeyInt) break;
+                }
+
+                // not found, go to next int
+                unsigned short sizePassed;
+                if (isLeaf) sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
+                else sizePassed = INT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
+                ixCurrKeyPtr += sizePassed;
+            }
+        }
+            // attribute type is float
+        else {
+            // generate low key float
+            float lowKeyFlt = *(float*) this->lowKey;
+
+            float currKeyFlt;
+            for (keyIdx = 0; keyIdx < numKeys; keyIdx++) {
+                // generate current float
+                memcpy(&currKeyFlt, (char*) currPageBuffer+ixCurrKeyPtr, FLT_SIZE);
+
+                // break if found entry to output
+                if (lowKeyInclusive){
+                    if (lowKeyFlt <= currKeyFlt) break;
+                }
+                else {
+                    if (lowKeyFlt < currKeyFlt) break;
+                }
+
+                // not found, go to next float
+                unsigned short sizePassed;
+                if (isLeaf) sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE;
+                else sizePassed = FLT_SIZE+PTR_PN_SIZE+PTR_SN_SIZE+PTR_PN_SIZE;
+                ixCurrKeyPtr += sizePassed;
+            }
+        }
         return 0;
     }
 
