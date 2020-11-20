@@ -4,7 +4,6 @@
 #include "test/utils/ix_test_utils.h"
 
 namespace PeterDBTesting {
-
     TEST_F(IX_File_Test, create_open_close_destory_index) {
         // Functions tested
         // 1. Create Index File
@@ -94,11 +93,9 @@ namespace PeterDBTesting {
         rid.pageNum = 900;
         rid.slotNum = 75;
 
-        std::cout << "Inside test insert_one_entry_and_scan, before Insert " << std::endl;
         // Insert one entry
         ASSERT_EQ(ix.insertEntry(ixFileHandle, ageAttr, &key, rid), success)
                                     << "indexManager::insertEntry() should succeed.";
-        std::cout << "Inside test insert_one_entry_and_scan, after Insert " << std::endl;
 
         // collect counters
         ASSERT_EQ(ixFileHandle.collectCounterValues(rc, wc, ac), success)
@@ -112,8 +109,6 @@ namespace PeterDBTesting {
         ASSERT_EQ(ixFileHandle.collectCounterValues(rcAfter, wcAfter, acAfter), success)
                                     << "indexManager::collectCounterValues() should succeed.";
 
-        std::cout << "Inside test insert_one_entry_and_scan, after scan, rcAfter - rc is " << rcAfter - rc << std::endl;
-
         EXPECT_GE(getFileSize(indexFileName) / PAGE_SIZE, 2) << "File size should get increased.";
         EXPECT_EQ(getFileSize(indexFileName) % PAGE_SIZE, 0) << "File should be based on PAGE_SIZE.";
 
@@ -126,7 +121,6 @@ namespace PeterDBTesting {
             ASSERT_EQ(rid.slotNum, 75) << "rid.slotNum is not correct.";
             count++;
         }
-        std::cout << "Inside test insert_one_entry_and_scan, after getNextEntry" << std::endl;
         ASSERT_EQ(count, 1) << "scan count is not correct.";
 
         // collect counters
@@ -184,7 +178,6 @@ namespace PeterDBTesting {
         std::stringstream stream;
         ASSERT_EQ(ix.printBTree(ixFileHandle, ageAttr, stream), success)
                                     << "indexManager::printBTree() should succeed.";
-        std::cout << "inside nsert_and_delete_one_entry, print B tree is "<< stream.str() << std::endl;
 
         validateTree(stream, 0, 0, 0, PAGE_SIZE / 10 / 2, true);
 
@@ -229,9 +222,6 @@ namespace PeterDBTesting {
         unsigned seed = 12545;
         unsigned salt = 90;
 
-        //unsigned numOfEntries = 1234;
-        //unsigned numOfMoreEntries = 1;
-
         // insert entries
         generateAndInsertEntries(numOfEntries, ageAttr, seed, salt);
 
@@ -275,7 +265,6 @@ namespace PeterDBTesting {
         count = 0;
         while (ix_ScanIterator.getNextEntry(rid, &key) == success) {
             validateUnorderedRID(key, count + seed, this->rids);
-            //std::cout << "inside scan_by_NO_OP, inside second while, key is "<< key << std::endl;
             count++;
             if (count % 5000 == 0) {
                 GTEST_LOG_(INFO) << count << " - Returned rid: " << rid.pageNum << " " << rid.slotNum;
@@ -293,6 +282,7 @@ namespace PeterDBTesting {
 
         EXPECT_GE (getFileSize(indexFileName) / PAGE_SIZE, (numOfEntries + numOfMoreEntries) / PAGE_SIZE / 10)
                             << "page size should be increased.";
+
     }
 
     TEST_F(IX_Test, scan_by_GE_OP) {
@@ -336,7 +326,6 @@ namespace PeterDBTesting {
 
     }
 
-
     TEST_F(IX_Test, scan_by_LT_OP) {
         // Functions tested
         // 1. Insert entry
@@ -379,7 +368,6 @@ namespace PeterDBTesting {
                             << "page size should be increased.";
 
     }
-
 
     TEST_F(IX_Test, scan_by_EQ_OP) {
         // Functions tested
@@ -454,6 +442,7 @@ namespace PeterDBTesting {
             }
         }
         EXPECT_EQ(count, numOfEntries) << "scanned count should match inserted.";
+
 
         // Delete some tuples
         unsigned deletedRecordNum = 0;
@@ -573,7 +562,6 @@ namespace PeterDBTesting {
             if (count % 5000 == 0) {
                 GTEST_LOG_(INFO) << count << " - Returned rid: " << rid.pageNum << " " << rid.slotNum;
             }
-            //std::cout << "inside scan_to_delete_entries, before delete pagenum is "<< rid.pageNum <<"slotNum is "<<rid.slotNum<<std::endl;
             ASSERT_EQ(ix.deleteEntry(ixFileHandle, heightAttr, &key, rid), success)
                                         << "indexManager::deleteEntry() should succeed.";
         }
@@ -611,7 +599,6 @@ namespace PeterDBTesting {
 
         // insert entries
         for (unsigned i = 0; i < numOfEntries; i++) {
-            //std::cout << "inside scan_varchar_with_compact_size, before inserting " << i+1 << "th varChar" << std::endl;
             memset(key, 0, 1004);
             prepareKeyAndRid(i, key, rid);
 
@@ -622,7 +609,6 @@ namespace PeterDBTesting {
                 rids.emplace_back(rid);
             }
         }
-        std::cout << "inside scan_varchar_with_compact_size, After insert first 500 varChar" << std::endl;
         // insert more entries
 
         for (unsigned i = 0; i < numOfMoreEntries; i++) {
@@ -634,13 +620,11 @@ namespace PeterDBTesting {
 
             rids.emplace_back(rid);
         }
-        std::cout << "inside scan_varchar_with_compact_size, After insert 5 more varChar" << std::endl;
 
         // print BTree, by this time the BTree should have only one node
         std::stringstream stream;
         ASSERT_EQ(ix.printBTree(ixFileHandle, empNameAttr, stream), success)
                                     << "indexManager::printBTree() should succeed.";
-        std::cout << "inside scan_varchar_with_compact_size, print B tree is "<< stream.str() << std::endl;
 
         // we give D a very large
         // (1+n)n/2 <= PAGE_SIZE, thus n >= 2^6.5 =90.5, we would put very loose D as around 45.
@@ -660,6 +644,7 @@ namespace PeterDBTesting {
         //iterate
         int count = 0;
         while (ix_ScanIterator.getNextEntry(rid, &key) == success) {
+
             auto target = std::find_if(rids.begin(), rids.end(), [&](const PeterDB::RID &r) {
                 return r.slotNum == rid.slotNum && r.pageNum == rid.pageNum;
             });
@@ -671,8 +656,7 @@ namespace PeterDBTesting {
             }
         }
 
-        //EXPECT_EQ(rids.size(), 0) << "all RIDs are scanned";
-        EXPECT_EQ(rids.size(), 4) << "all RIDs are scanned";
+        EXPECT_EQ(rids.size(), 0) << "all RIDs are scanned";
 
         // collect counters
         ASSERT_EQ(ixFileHandle.collectCounterValues(rcAfter, wcAfter, acAfter), success)
@@ -729,7 +713,6 @@ namespace PeterDBTesting {
         std::stringstream stream;
         ASSERT_EQ(ix.printBTree(ixFileHandle, empNameAttr, stream), success)
                                     << "indexManager::printBTree() should succeed.";
-        std::cout << "inside split_rotate_and_promote_on_insertion, print B tree is \n"<< stream.str() << std::endl;
         validateTree(stream, numOfEntries, numOfEntries, 2, 2);
 
     }
