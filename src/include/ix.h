@@ -8,6 +8,7 @@
 
 #include <vector>
 #include <string>
+#include <cstring>
 
 #include "pfm.h"
 #include "rbfm.h" // for some type declarations only, e.g., RID and Attribute
@@ -20,7 +21,6 @@ namespace PeterDB {
     class IXFileHandle;
 
     class IndexManager {
-
     public:
         static IndexManager &instance();
 
@@ -54,16 +54,35 @@ namespace PeterDB {
         // Print the B+ tree in pre-order (in a JSON record format)
         RC printBTree(IXFileHandle &ixFileHandle, const Attribute &attribute, std::ostream &out) const;
 
-    //private:
+        /*********************************************/
+        /*****    Getter and Setter functions  *******/
+        /*********************************************/
+        unsigned short getKeyLength(const void *key, AttrType attrType);
+
+        unsigned getRootPageNum(IXFileHandle &ixFileHandle) const;
+
+        bool getIsLeaf(void* pageBuffer) const;
+
+        unsigned short getNumKeys(void* pageBuffer) const;
+
+        unsigned short getFreeBytes(void* pageBuffer) const;
+
+        int getNextPageNum(void* pageBuffer) const;
+
+        void setIsLeaf(void* pageBuffer, bool isLeaf);
+
+        void setNumKeys(void* pageBuffer, unsigned short numKeys);
+
+        void setFreeBytes(void* pageBuffer, unsigned short freeBytes);
+
+        void setNextPageNum(void* pageBuffer, int nextPageNum);
+
+    private:
         PagedFileManager* pfm;
 
         /**********************************/
         /*****    Helper functions  *******/
         /**********************************/
-        unsigned short getKeyLength(const void *key, AttrType attrType);
-
-        unsigned getRootPageNum(IXFileHandle &ixFileHandle) const;
-
         RC insertEntryRec(IXFileHandle &ixFileHandle, void* pageBuffer, unsigned pageNum, unsigned keyLength,
                        AttrType attrType, const void *key, const RID &rid, void* &newChildEntry, unsigned rootPageNum);
 
@@ -86,25 +105,6 @@ namespace PeterDB {
         RC printNode(IXFileHandle &ixFileHandle, AttrType attrType, unsigned pageNum,
                      int indent, std::ostream &out) const;
 
-        /*********************************************/
-        /*****    Getter and Setter functions  *******/
-        /*********************************************/
-        bool getIsLeaf(void* pageBuffer) const;
-
-        unsigned short getNumKeys(void* pageBuffer) const;
-
-        unsigned short getFreeBytes(void* pageBuffer) const;
-
-        int getNextPageNum(void* pageBuffer) const;
-
-        void setIsLeaf(void* pageBuffer, bool isLeaf);
-
-        void setNumKeys(void* pageBuffer, unsigned short numKeys);
-
-        void setFreeBytes(void* pageBuffer, unsigned short freeBytes);
-
-        void setNextPageNum(void* pageBuffer, int nextPageNum);
-
     protected:
         IndexManager();                                                             // Prevent construction
 
@@ -120,19 +120,19 @@ namespace PeterDB {
     public:
 
         // Constructor
-        IX_ScanIterator() = default;;
+        IX_ScanIterator() = default;
 
         // Destructor
-        ~IX_ScanIterator() = default;;
+        ~IX_ScanIterator() = default;
+
+        RC initialize(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
+                      bool lowKeyInclusive, bool highKeyInclusive, IndexManager* ix);
 
         // Get next matching entry
         RC getNextEntry(RID &rid, void *key);
 
         // Terminate index scan
         RC close();
-
-        RC initialize(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *lowKey, const void *highKey,
-                      bool lowKeyInclusive, bool highKeyInclusive, IndexManager* ix);
 
         IXFileHandle* ixFileHandle;
 
@@ -144,14 +144,13 @@ namespace PeterDB {
         const void* highKey;
         bool lowKeyInclusive;
         bool highKeyInclusive;
-        int ixCurrKeyPtr;
+        unsigned short ixCurrKeyPtr;
         bool isFirstGetNextEntry;
         void* currPageBuffer;
 
-        int minInt = std::numeric_limits<int>::min();
-        int maxInt = std::numeric_limits<int>::max();
-        float minFlt = std::numeric_limits<float>::min();
-        float maxFlt = std::numeric_limits<float>::max();
+        RC findNextNonEmptyLeaf();
+
+        RC findEntryToOutput(int& keyIdx, unsigned short numKeys, bool isLeaf);
     };
 
     class IXFileHandle {
