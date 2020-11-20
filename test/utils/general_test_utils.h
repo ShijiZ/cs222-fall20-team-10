@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sstream>
 #include <fstream>
+#include <random>
 
 #include "glog/logging.h"
 #include "gtest/gtest.h"
@@ -105,11 +106,8 @@ namespace PeterDBTesting {
         std::string::size_type val_end;
 
         while ((key_end = keyValuePairsStr.find(':', key_pos)) != std::string::npos) {
-            if ((val_pos = keyValuePairsStr.find_first_not_of(": ", key_end)) == std::string::npos) {
-                // Handle the case of empty string
-                outMap.emplace(trim_copy(keyValuePairsStr.substr(key_pos, key_end - key_pos)), std::string());
+            if ((val_pos = keyValuePairsStr.find_first_not_of(": ", key_end)) == std::string::npos)
                 break;
-            }
 
             val_end = keyValuePairsStr.find(',', val_pos);
             outMap.emplace(trim_copy(keyValuePairsStr.substr(key_pos, key_end - key_pos)),
@@ -182,9 +180,9 @@ namespace PeterDBTesting {
 
     static void setBit(char &src, bool value, unsigned offset) {
         if (value) {
-            src |= 1u << offset;
+            src |= (unsigned) 1 << offset;
         } else {
-            src &= ~(1u << offset);
+            src &= ~((unsigned) 1 << offset);
         }
     }
 
@@ -203,6 +201,22 @@ namespace PeterDBTesting {
 //        getrusage(who, &usage);
 //        std::cout << usage.ru_maxrss << "KB" << std::endl;
 //    }
+
+    std::vector<std::string> split(std::string str, const std::string &token) {
+        std::vector<std::string> result;
+        while (!str.empty()) {
+            int index = str.find(token);
+            if (index != std::string::npos) {
+                result.push_back(str.substr(0, index));
+                str = str.substr(index + token.size());
+                if (str.empty())result.emplace_back(str);
+            } else {
+                result.push_back(str);
+                str = "";
+            }
+        }
+        return result;
+    }
 
 } // namespace PeterDBTesting
 
