@@ -333,7 +333,50 @@ namespace PeterDB {
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
        return rbfm_ScanIterator.initialize(fileHandle, recordDescriptor, conditionAttribute,
-                                           compOp, value, attributeNames);
+                                           compOp, value, attributeNames, this);
+    }
+
+    /*********************************************/
+    /*****    Getter and Setter functions  *******/
+    /*********************************************/
+    unsigned short RecordBasedFileManager::getNumSlots(void* pageBuffer) {
+        unsigned short numSlots;
+        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
+        return numSlots;
+    }
+
+    unsigned short RecordBasedFileManager::getFreeBytes(void* pageBuffer) {
+        unsigned short freeBytes;
+        memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-F_SIZE, F_SIZE);
+        return freeBytes;
+    }
+
+    short RecordBasedFileManager::getRecordLength(void* pageBuffer, unsigned short slotNum) {
+        short recordLength;
+        memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), REC_LEN_SIZE);
+        return recordLength;
+    }
+
+    short RecordBasedFileManager::getRecordOffset(void* pageBuffer, unsigned short slotNum) {
+        short recordOffset;
+        memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), REC_OFF_SIZE);
+        return recordOffset;
+    }
+
+    void RecordBasedFileManager::setNumSlots(void* pageBuffer, unsigned short numSlots) {
+        memcpy((char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, &numSlots, N_SIZE);
+    }
+
+    void RecordBasedFileManager::setFreeBytes(void* pageBuffer, unsigned short freeBytes) {
+        memcpy((char*) pageBuffer+PAGE_SIZE-F_SIZE, &freeBytes, F_SIZE);
+    }
+
+    void RecordBasedFileManager::setRecordLength(void* pageBuffer, unsigned short slotNum, short recordLength) {
+        memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), &recordLength, REC_LEN_SIZE);
+    }
+
+    void RecordBasedFileManager::setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset) {
+        memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), &recordOffset, REC_OFF_SIZE);
     }
 
     /**********************************/
@@ -617,55 +660,13 @@ namespace PeterDB {
         return 0;
     }
 
-    /*********************************************/
-    /*****    Getter and Setter functions  *******/
-    /*********************************************/
-    unsigned short RecordBasedFileManager::getNumSlots(void* pageBuffer) {
-        unsigned short numSlots;
-        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
-        return numSlots;
-    }
-
-    unsigned short RecordBasedFileManager::getFreeBytes(void* pageBuffer) {
-        unsigned short freeBytes;
-        memcpy(&freeBytes, (char*) pageBuffer+PAGE_SIZE-F_SIZE, F_SIZE);
-        return freeBytes;
-    }
-
-    short RecordBasedFileManager::getRecordLength(void* pageBuffer, unsigned short slotNum) {
-        short recordLength;
-        memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), REC_LEN_SIZE);
-        return recordLength;
-    }
-
-    short RecordBasedFileManager::getRecordOffset(void* pageBuffer, unsigned short slotNum) {
-        short recordOffset;
-        memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), REC_OFF_SIZE);
-        return recordOffset;
-    }
-
-    void RecordBasedFileManager::setNumSlots(void* pageBuffer, unsigned short numSlots) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, &numSlots, N_SIZE);
-    }
-
-    void RecordBasedFileManager::setFreeBytes(void* pageBuffer, unsigned short freeBytes) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-F_SIZE, &freeBytes, F_SIZE);
-    }
-
-    void RecordBasedFileManager::setRecordLength(void* pageBuffer, unsigned short slotNum, short recordLength) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), &recordLength, REC_LEN_SIZE);
-    }
-
-    void RecordBasedFileManager::setRecordOffset(void* pageBuffer, unsigned short slotNum, short recordOffset) {
-        memcpy((char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), &recordOffset, REC_OFF_SIZE);
-    }
-
     /*************************************************/
     /*****    functions of rbfm_Scan_Iterator  *******/
     /*************************************************/
     RC RBFM_ScanIterator::initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                      const std::string &conditionAttribute, const CompOp compOp, const void* value,
-                                     const std::vector<std::string> &attributeNames) {
+                                     const std::vector<std::string> &attributeNames, RecordBasedFileManager* rbfm) {
+        this->rbfm = rbfm;
         this->recordDescriptor = recordDescriptor;
         this->compOp = compOp;
 
@@ -720,10 +721,13 @@ namespace PeterDB {
             //std::cout<<"inside getNextRecord after enter outer for loop, currPageNum is "<<currPageNum<< ", pageNum is " << pageNum <<std::endl;
             RC errCode = fileHandle.readPage(pageNum, pageBuffer);
             if (errCode != 0) return errCode;
-            numSlots = getNumSlots(pageBuffer);
+            numSlots = rbfm->getNumSlots(pageBuffer);
 
             for (slotNum = currSlotNum; slotNum < numSlots; slotNum++) {
-                parseRecord(pageBuffer, slotNum, recordOffset, recordLength);
+                recordOffset = rbfm->getRecordOffset(pageBuffer, slotNum);
+                recordLength = rbfm->getRecordLength(pageBuffer, slotNum);
+
+                //parseRecord(pageBuffer, slotNum, recordOffset, recordLength);
 
                 if (recordOffset == -1 || recordLength == -1) continue;
                 if (conditionAttrIdx == -1){
@@ -802,6 +806,11 @@ namespace PeterDB {
         }
         free(pageBuffer);
         return RBFM_EOF;
+    }
+
+    RC RBFM_ScanIterator::close(){
+        targetAttrIdxs.clear();
+        return fileHandle.closeFile();
     }
 
     RC RBFM_ScanIterator::parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs){
@@ -920,22 +929,6 @@ namespace PeterDB {
             }
         }
         return found;
-    }
-
-    unsigned short RBFM_ScanIterator::getNumSlots(void* pageBuffer) {
-        unsigned short numSlots;
-        memcpy(&numSlots, (char*) pageBuffer+PAGE_SIZE-N_SIZE-F_SIZE, N_SIZE);
-        return numSlots;
-    }
-
-    void RBFM_ScanIterator::parseRecord(void* pageBuffer, unsigned short slotNum, short& recordOffset, short& recordLength) {
-        memcpy(&recordOffset, (char*) pageBuffer+PAGE_SIZE-(4+2*slotNum)*sizeof(short), REC_OFF_SIZE);
-        memcpy(&recordLength, (char*) pageBuffer+PAGE_SIZE-(3+2*slotNum)*sizeof(short), REC_LEN_SIZE);
-    }
-
-    RC RBFM_ScanIterator::close(){
-        targetAttrIdxs.clear();
-        return fileHandle.closeFile();
     }
 
 } // namespace PeterDB
