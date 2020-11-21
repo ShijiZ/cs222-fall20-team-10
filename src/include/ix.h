@@ -91,7 +91,7 @@ namespace PeterDB {
                              AttrType attrType, bool isLeaf, bool isHuge);
 
         RC findPageNumToBeHandled(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
-                                  unsigned short numKeys, AttrType attrType, int& pageNumToBeInserted);
+                                  unsigned short numKeys, AttrType attrType, unsigned& pageNumToBeInserted);
 
         RC splitNode(IXFileHandle &ixFileHandle, void* pageBuffer, const void *key, unsigned short bytesNeeded,
                      void* &newChildEntry, unsigned pageNum, unsigned short freeBytes, unsigned short numKeys,

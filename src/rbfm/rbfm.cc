@@ -749,9 +749,9 @@ namespace PeterDB {
                     }
                     // Conditional attribute in current record is null
                     else {
-                        if (compOp == EQ_OP) foundCondAttr = value == nullptr;
-                        else if (compOp == NE_OP) foundCondAttr = value != nullptr;
-                        else return -1;
+                        if (compOp != NE_OP) foundCondAttr = value == nullptr;
+                        else foundCondAttr = value != nullptr;
+                        //else return -1;
                     }
                     if (foundCondAttr) break;
                 }
