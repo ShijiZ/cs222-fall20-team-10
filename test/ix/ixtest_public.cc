@@ -592,7 +592,7 @@ namespace PeterDBTesting {
         // 3. Scan
         // 4. Get Scan IO count
         // 5. Close Scan
-
+        std::cout<< "inside scan_varchar_with_compact_size, test "<<std::endl;
         unsigned numOfEntries = 500;
         unsigned numOfMoreEntries = 5;
         char key[1004];

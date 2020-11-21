@@ -227,7 +227,7 @@ namespace PeterDB {
     /*****    Getter and Setter functions  *******/
     /*********************************************/
     unsigned short IndexManager::getKeyLength(const void *key, AttrType attrType) {
-        unsigned short keyLength;
+        unsigned keyLength;
         if (attrType == TypeVarChar) {
             memcpy(&keyLength, key, VC_LEN_SIZE);
             keyLength += VC_LEN_SIZE;
@@ -235,7 +235,7 @@ namespace PeterDB {
         else {
             keyLength = INT_OR_FLT_SIZE;
         }
-        return keyLength;
+        return (unsigned short) keyLength;
     }
 
     unsigned IndexManager::getRootPageNum(IXFileHandle &ixFileHandle) const {
@@ -319,7 +319,8 @@ namespace PeterDB {
                 if(errCode != 0) return errCode;
                 newChildEntry = nullptr;
 
-                return ixFileHandle.fileHandle.writePage(pageNum, pageBuffer);
+                errCode = ixFileHandle.fileHandle.writePage(pageNum, pageBuffer);
+                if(errCode != 0) return errCode;
             }
             // new key cannot be inserted in this leaf node, must split
             else {
@@ -491,7 +492,7 @@ namespace PeterDB {
             }
         }
         // shift all keys after key to be inserted to the right,
-        memcpy((char*) pageBuffer+currKeyPtr+bytesNeeded, (char*) pageBuffer+currKeyPtr, sizeToBeShifted);
+        memmove((char*) pageBuffer+currKeyPtr+bytesNeeded, (char*) pageBuffer+currKeyPtr, sizeToBeShifted);
         memcpy((char*) pageBuffer+currKeyPtr, (char*) key, bytesNeeded);
 
         // update numKeys and freeBytes if this page is not a huge page
