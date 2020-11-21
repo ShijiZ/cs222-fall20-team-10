@@ -67,7 +67,8 @@ namespace PeterDB {
             if (errCode != 0) return errCode;
 
             // allocate newChildEntry, insert entry to root recursively
-            void* newChildEntry = malloc(PAGE_SIZE);
+            //void* newChildEntry = malloc(PAGE_SIZE);
+            void* newChildEntry = nullptr;
             errCode = insertEntryRec(ixFileHandle, pageBuffer, rootPageNum, keyLength,
                                    attrType, key, rid, newChildEntry, rootPageNum);
             if (errCode != 0) return errCode;
@@ -358,7 +359,12 @@ namespace PeterDB {
                     RC errCode = insertEntryToPage(pageBuffer, newChildEntry, bytesNeeded,
                                                    freeBytes, numKeys, attrType, false, false);
                     if(errCode != 0) return errCode;
+                    ///// test ////
+                    void* newChildEntryToBeFreed = newChildEntry;
                     newChildEntry = nullptr;
+                    free(newChildEntryToBeFreed);
+                    //////////
+                    //newChildEntry = nullptr;
 
                     //std::cout << "Inside insertEntry1, child split, newChildEntry inserted to parent，numKeys is " << numKeys+1 << std::endl;
                     return ixFileHandle.fileHandle.writePage(pageNum, pageBuffer);
@@ -640,6 +646,11 @@ namespace PeterDB {
                     setFreeBytes(pageBuffer, leftSiblingFreeBytes);
 
                     // prepare newChildEntry (without pointer to right sibling, see below) as middle entry
+                    ////// test ////
+                    if (isLeaf) newChildEntry = malloc(sizeToBePassed+PTR_PN_SIZE);
+                    else newChildEntry = malloc(sizeToBePassed);
+                    ///////
+
                     memcpy((char*) newChildEntry, (char*) hugePageBuffer+currKeyPtr-sizeToBePassed, sizeToBePassed);
                     break;
                 }
@@ -671,6 +682,11 @@ namespace PeterDB {
                     setFreeBytes(pageBuffer, leftSiblingFreeBytes);
 
                     // prepare newChildEntry (without pointer to right sibling, see below) as middle entry
+                    ////// test ////
+                    if (isLeaf) newChildEntry = malloc(sizeToBePassed+PTR_PN_SIZE);
+                    else newChildEntry = malloc(sizeToBePassed);
+                    ///////
+
                     memcpy((char*) newChildEntry, (char*) hugePageBuffer+currKeyPtr-sizeToBePassed, sizeToBePassed);
                     break;
                 }
