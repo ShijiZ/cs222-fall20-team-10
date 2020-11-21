@@ -86,14 +86,13 @@ namespace PeterDB {
         unsigned short keyLength = getKeyLength(key, attrType);
 
         // get root page
-        unsigned rootPageNum = getRootPageNum(ixFileHandle);
-        RC errCode = ixFileHandle.fileHandle.readPage(rootPageNum, pageBuffer);
+        unsigned pageNumTobeDeleted = getRootPageNum(ixFileHandle);
+        RC errCode = ixFileHandle.fileHandle.readPage(pageNumTobeDeleted, pageBuffer);
         if (errCode != 0) return errCode;
 
         // find the leaf node (potentially) containing the entry
-        int pageNumTobeDeleted;
         bool isLeaf = getIsLeaf(pageBuffer);
-        unsigned short numKeys = getNumKeys(pageBuffer);;
+        unsigned short numKeys = getNumKeys(pageBuffer);
         while (!isLeaf) {
             errCode = findPageNumToBeHandled(pageBuffer, keyLength, key, rid,
                                              numKeys, attrType, pageNumTobeDeleted);
@@ -332,7 +331,7 @@ namespace PeterDB {
         }
         // node is non-leaf node
         else {
-            int pageNumToBeInserted;
+            unsigned pageNumToBeInserted;
             RC errCode = findPageNumToBeHandled(pageBuffer, keyLength, key, rid,
                                                 numKeys, attrType, pageNumToBeInserted);
             // std::cout<< "inside insertEntry1, after findPageNumToBeHandled pageNumToBeInserted is " << pageNumToBeInserted << std::endl;
@@ -504,7 +503,7 @@ namespace PeterDB {
     }
 
     RC IndexManager::findPageNumToBeHandled(void* pageBuffer, unsigned keyLength, const void *key, const RID &rid,
-                                             unsigned short numKeys, AttrType attrType, int& pageNumToBeHandled) {
+                                             unsigned short numKeys, AttrType attrType, unsigned& pageNumToBeHandled) {
         unsigned short currKeyPtr = IS_LEAF_SIZE + PTR_PN_SIZE;
         unsigned currPageNum;
         unsigned short currSlotNum;

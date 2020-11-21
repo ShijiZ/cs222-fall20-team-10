@@ -979,7 +979,7 @@ namespace PeterDBTesting {
 
         // Test Add Attribute
         PeterDB::Attribute attr{
-                "SSN", PeterDB::TypeInt, 4
+                "ssn", PeterDB::TypeInt, 4
         };
         ASSERT_EQ(rm.addAttribute(tableName, attr), success) << "RelationManager::addAttribute() should succeed.";
 
