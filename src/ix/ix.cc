@@ -66,13 +66,11 @@ namespace PeterDB {
             RC errCode = ixFileHandle.fileHandle.readPage(rootPageNum, pageBuffer);
             if (errCode != 0) return errCode;
 
-            // allocate newChildEntry, insert entry to root recursively
-            //void* newChildEntry = malloc(PAGE_SIZE);
+            // init newChildEntry, insert entry to root recursively
             void* newChildEntry = nullptr;
             errCode = insertEntryRec(ixFileHandle, pageBuffer, rootPageNum, keyLength,
                                    attrType, key, rid, newChildEntry, rootPageNum);
             if (errCode != 0) return errCode;
-            free(newChildEntry);
         }
         free(pageBuffer);
         return 0;
@@ -318,7 +316,6 @@ namespace PeterDB {
                 RC errCode = insertEntryToPage(pageBuffer, entryToBeInserted, bytesNeeded,
                                                freeBytes, numKeys, attrType, true, false);
                 if(errCode != 0) return errCode;
-                newChildEntry = nullptr;
 
                 return ixFileHandle.fileHandle.writePage(pageNum, pageBuffer);
             }
@@ -359,12 +356,10 @@ namespace PeterDB {
                     RC errCode = insertEntryToPage(pageBuffer, newChildEntry, bytesNeeded,
                                                    freeBytes, numKeys, attrType, false, false);
                     if(errCode != 0) return errCode;
-                    ///// test ////
+
                     void* newChildEntryToBeFreed = newChildEntry;
                     newChildEntry = nullptr;
                     free(newChildEntryToBeFreed);
-                    //////////
-                    //newChildEntry = nullptr;
 
                     //std::cout << "Inside insertEntry1, child split, newChildEntry inserted to parent，numKeys is " << numKeys+1 << std::endl;
                     return ixFileHandle.fileHandle.writePage(pageNum, pageBuffer);
@@ -646,11 +641,8 @@ namespace PeterDB {
                     setFreeBytes(pageBuffer, leftSiblingFreeBytes);
 
                     // prepare newChildEntry (without pointer to right sibling, see below) as middle entry
-                    ////// test ////
                     if (isLeaf) newChildEntry = malloc(sizeToBePassed+PTR_PN_SIZE);
                     else newChildEntry = malloc(sizeToBePassed);
-                    ///////
-
                     memcpy((char*) newChildEntry, (char*) hugePageBuffer+currKeyPtr-sizeToBePassed, sizeToBePassed);
                     break;
                 }
@@ -682,11 +674,8 @@ namespace PeterDB {
                     setFreeBytes(pageBuffer, leftSiblingFreeBytes);
 
                     // prepare newChildEntry (without pointer to right sibling, see below) as middle entry
-                    ////// test ////
                     if (isLeaf) newChildEntry = malloc(sizeToBePassed+PTR_PN_SIZE);
                     else newChildEntry = malloc(sizeToBePassed);
-                    ///////
-
                     memcpy((char*) newChildEntry, (char*) hugePageBuffer+currKeyPtr-sizeToBePassed, sizeToBePassed);
                     break;
                 }
@@ -743,6 +732,7 @@ namespace PeterDB {
             void* newRootEntry = malloc(newRootEntryLength);
             memcpy((char*) newRootEntry, &pageNum, PTR_PN_SIZE);
             memcpy((char*) newRootEntry+PTR_PN_SIZE, (char*) newChildEntry, newRootEntryLength-PTR_PN_SIZE);
+            free(newChildEntry);
 
             errCode = initNonLeafNode(newRootPageBuffer, newRootEntry, newRootEntryLength, 1);
             if(errCode != 0) return errCode;
