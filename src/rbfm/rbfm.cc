@@ -610,7 +610,8 @@ namespace PeterDB {
                 sizeToBeShifted += currRecordLength;
             }
         }
-        memcpy((char*) pageBuffer+recordOffset+recordLength+distance, (char*) pageBuffer+recordOffset+recordLength, sizeToBeShifted);
+        memmove((char*) pageBuffer+recordOffset+recordLength+distance,
+                (char*) pageBuffer+recordOffset+recordLength, sizeToBeShifted);
     }
 
     RC RecordBasedFileManager::checkAndFindRecord(FileHandle &fileHandle, void* pageBuffer,

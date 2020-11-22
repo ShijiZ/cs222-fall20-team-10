@@ -194,9 +194,9 @@ namespace PeterDB {
         // std::cout << "Inside deleteEntry, keyIdx is " << keyIdx << ", numKeys is " << numKeys << std::endl;
 
         // shift all keys after key to be deleted to the left, update numKeys and freeBytes
-        memcpy((char*) pageBuffer+currKeyPtr,
-               (char*) pageBuffer+currKeyPtr+keyLength+PTR_PN_SIZE+PTR_SN_SIZE,
-               PAGE_SIZE-NXT_PN_SIZE-N_SIZE-F_SIZE-currKeyPtr-keyLength-PTR_PN_SIZE-PTR_SN_SIZE);
+        memmove((char*) pageBuffer+currKeyPtr,
+                (char*) pageBuffer+currKeyPtr+keyLength+PTR_PN_SIZE+PTR_SN_SIZE,
+                PAGE_SIZE-NXT_PN_SIZE-N_SIZE-F_SIZE-currKeyPtr-keyLength-PTR_PN_SIZE-PTR_SN_SIZE);
         setNumKeys(pageBuffer, numKeys-1);
         setFreeBytes(pageBuffer, getFreeBytes(pageBuffer)+keyLength+PTR_PN_SIZE+PTR_SN_SIZE);
         //std::cout << "inside deleteEntry, freeBytes is"<<getFreeBytes(pageBuffer)<<std::endl;
