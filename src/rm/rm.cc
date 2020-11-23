@@ -191,12 +191,12 @@ namespace PeterDB {
     RC RelationManager::insertTuple(const std::string &tableName, const void* data, RID &rid) {
         if (tableName == "Tables" || tableName == "Columns") return -1;
 
-        FileHandle fileHandle;
-        RC errCode = rbfm->openFile(tableName, fileHandle);
+        std::vector<Attribute> recordDescriptor;
+        RC errCode = getAttributes(tableName, recordDescriptor);
         if (errCode != 0) return errCode;
 
-        std::vector<Attribute> recordDescriptor;
-        errCode = getAttributes(tableName, recordDescriptor);
+        FileHandle fileHandle;
+        errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         errCode = rbfm->insertRecord(fileHandle, recordDescriptor, data, rid);
@@ -211,12 +211,12 @@ namespace PeterDB {
     RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
         if (tableName == "Tables" || tableName == "Columns") return -1;
 
-        FileHandle fileHandle;
-        RC errCode = rbfm->openFile(tableName, fileHandle);
+        std::vector<Attribute> recordDescriptor;
+        RC errCode = getAttributes(tableName, recordDescriptor);
         if (errCode != 0) return errCode;
 
-        std::vector<Attribute> recordDescriptor;
-        errCode = getAttributes(tableName, recordDescriptor);
+        FileHandle fileHandle;
+        errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         errCode = rbfm->deleteRecord(fileHandle, recordDescriptor, rid);
@@ -231,12 +231,12 @@ namespace PeterDB {
     RC RelationManager::updateTuple(const std::string &tableName, const void* data, const RID &rid) {
         if (tableName == "Tables" || tableName == "Columns") return -1;
 
-        FileHandle fileHandle;
-        RC errCode = rbfm->openFile(tableName, fileHandle);
+        std::vector<Attribute> recordDescriptor;
+        RC errCode = getAttributes(tableName, recordDescriptor);
         if (errCode != 0) return errCode;
 
-        std::vector<Attribute> recordDescriptor;
-        errCode = getAttributes(tableName, recordDescriptor);
+        FileHandle fileHandle;
+        errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         errCode = rbfm->updateRecord(fileHandle, recordDescriptor, data, rid);
@@ -249,12 +249,14 @@ namespace PeterDB {
     }
 
     RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void* data) {
-        FileHandle fileHandle;
-        RC errCode = rbfm->openFile(tableName, fileHandle);
-        if (errCode != 0) return errCode;
-
         std::vector<Attribute> recordDescriptor;
-        errCode = getAttributes(tableName, recordDescriptor);
+        std::cout << "Before getAttributes" << std::endl;
+        RC errCode = getAttributes(tableName, recordDescriptor);
+        if (errCode != 0) return errCode;
+        std::cout << "After getAttributes" << std::endl;
+
+        FileHandle fileHandle;
+        errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         errCode = rbfm->readRecord(fileHandle, recordDescriptor, rid, data);
@@ -272,12 +274,12 @@ namespace PeterDB {
 
     RC RelationManager::readAttribute(const std::string &tableName, const RID &rid, const std::string &attributeName,
                                       void* data) {
-        FileHandle fileHandle;
-        RC errCode = rbfm->openFile(tableName, fileHandle);
+        std::vector<Attribute> recordDescriptor;
+        RC errCode = getAttributes(tableName, recordDescriptor);
         if (errCode != 0) return errCode;
 
-        std::vector<Attribute> recordDescriptor;
-        errCode = getAttributes(tableName, recordDescriptor);
+        FileHandle fileHandle;
+        errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
 
         errCode = rbfm->readAttribute(fileHandle, recordDescriptor, rid, attributeName, data);
@@ -302,8 +304,8 @@ namespace PeterDB {
         errCode = getAttributes(tableName,recordDescriptor);
         if (errCode != 0) return errCode;
 
-        errCode = rbfm->scan(rm_ScanIterator.rbfm_scanIterator.fileHandle, recordDescriptor, conditionAttribute,
-                             compOp, value, attributeNames, rm_ScanIterator.rbfm_scanIterator);
+        errCode = rbfm->scan(recordDescriptor, conditionAttribute, compOp, value,
+                             attributeNames, rm_ScanIterator.rbfm_scanIterator);
         if (errCode != 0) return errCode;
 
         return 0;
