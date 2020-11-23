@@ -1,7 +1,7 @@
 #include "test/utils/rm_test_util.h"
 
 namespace PeterDBTesting {
-/*
+
     TEST_F(RM_Private_Test, read_attributes) {
         // Functions tested
         // 1. Insert 100,000 tuples
@@ -329,7 +329,7 @@ namespace PeterDBTesting {
         ASSERT_EQ(rmsi.close(), success) << "close iterator should succeed.";
 
     }
-*/
+
     TEST_F(RM_Private_Test, scan_after_delete) {
         // Functions tested
         // 1. insert 100,000 tuples
@@ -513,7 +513,7 @@ namespace PeterDBTesting {
         ASSERT_GE(count, 1) << "There should be at least one more table.";
 
     }
-/*
+
     TEST_F(RM_Version_Test, extra_multiple_add_drop_mix) {
         // Extra Credit Test Case - Functions Tested:
         // 1. Insert tuple
@@ -684,5 +684,5 @@ namespace PeterDBTesting {
         ASSERT_EQ(*(char *) outBuffer, (char)128u) << "returned salary should be NULL";
 
     }
-*/
+
 }

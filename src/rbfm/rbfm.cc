@@ -328,12 +328,12 @@ namespace PeterDB {
         return 0;
     }
 
-    RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+    RC RecordBasedFileManager::scan(const std::vector<Attribute> &recordDescriptor,
                                     const std::string &conditionAttribute, const CompOp compOp, const void* value,
                                     const std::vector<std::string> &attributeNames,
                                     RBFM_ScanIterator &rbfm_ScanIterator) {
-       return rbfm_ScanIterator.initialize(fileHandle, recordDescriptor, conditionAttribute,
-                                           compOp, value, attributeNames, this);
+        return rbfm_ScanIterator.initialize(recordDescriptor, conditionAttribute,
+                                            compOp, value, attributeNames, this);
     }
 
     /*********************************************/
@@ -664,7 +664,7 @@ namespace PeterDB {
     /*************************************************/
     /*****    functions of rbfm_Scan_Iterator  *******/
     /*************************************************/
-    RC RBFM_ScanIterator::initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+    RC RBFM_ScanIterator::initialize(const std::vector<Attribute> &recordDescriptor,
                                      const std::string &conditionAttribute, const CompOp compOp, const void* value,
                                      const std::vector<std::string> &attributeNames, RecordBasedFileManager* rbfm) {
         this->rbfm = rbfm;

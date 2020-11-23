@@ -120,8 +120,7 @@ namespace PeterDB {
                          const std::string &attributeName, void *data);
 
         // Scan returns an iterator to allow the caller to go through the results one by one.
-        RC scan(FileHandle &fileHandle,
-                const std::vector<Attribute> &recordDescriptor,
+        RC scan(const std::vector<Attribute> &recordDescriptor,
                 const std::string &conditionAttribute,
                 const CompOp compOp,                  // comparison type such as "<" and "="
                 const void *value,                    // used in the comparison
@@ -205,7 +204,7 @@ namespace PeterDB {
 
         ~RBFM_ScanIterator() = default;
 
-        RC initialize(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
+        RC initialize(const std::vector<Attribute> &recordDescriptor,
                       const std::string &conditionAttribute, const CompOp compOp, const void *value,
                       const std::vector<std::string> &attributeNames, RecordBasedFileManager* rbfm);
 

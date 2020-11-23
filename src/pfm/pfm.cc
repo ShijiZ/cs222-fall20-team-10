@@ -81,7 +81,9 @@ namespace PeterDB {
         fileToBeHandled = new std::fstream;
     }
 
-    FileHandle::~FileHandle() = default;
+    FileHandle::~FileHandle() {
+        closeFile();
+    }
 
     RC FileHandle::openFile(const std::string &fileName) {
         // Test if fileToBeHandled is already open
