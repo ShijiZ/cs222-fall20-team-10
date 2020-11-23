@@ -811,7 +811,7 @@ namespace PeterDB {
 
     RC RBFM_ScanIterator::close(){
         targetAttrIdxs.clear();
-        return fileHandle.closeFile();
+        return 0;
     }
 
     RC RBFM_ScanIterator::parseAttr(short &attrLen, short &attrOffset, void* pageBuffer, short recordOffset, short idx, int numAttrs){

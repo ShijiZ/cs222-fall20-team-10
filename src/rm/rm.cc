@@ -183,7 +183,8 @@ namespace PeterDB {
             memcpy(&tableId, (char*) data+1, INT_SIZE);
             free(data);
 
-            return buildRecordDescriptor(tableId, attrs);
+            errCode = buildRecordDescriptor(tableId, attrs);
+            if (errCode != 0) return errCode;
         }
         return 0;
     }
@@ -250,10 +251,8 @@ namespace PeterDB {
 
     RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void* data) {
         std::vector<Attribute> recordDescriptor;
-        std::cout << "Before getAttributes" << std::endl;
         RC errCode = getAttributes(tableName, recordDescriptor);
         if (errCode != 0) return errCode;
-        std::cout << "After getAttributes" << std::endl;
 
         FileHandle fileHandle;
         errCode = rbfm->openFile(tableName, fileHandle);
@@ -519,7 +518,12 @@ namespace PeterDB {
     }
 
     RC RM_ScanIterator::close() {
-        return rbfm_scanIterator.close();
+        RC errCode = rbfm_scanIterator.close();
+        if (errCode != 0) return errCode;
+
+        errCode = rbfm_scanIterator.fileHandle.closeFile();
+        if (errCode != 0) return errCode;
+        return 0;
     }
 
 } // namespace PeterDB
