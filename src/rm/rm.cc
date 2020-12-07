@@ -50,8 +50,17 @@ namespace PeterDB {
         attr.length = (AttrLength) INT_SIZE;
         columnsRecordDescriptor.push_back(attr);
 
+        attr.name = "column-indexed";
+        attr.type = TypeInt;
+        attr.length = (AttrLength) INT_SIZE;
+        columnsRecordDescriptor.push_back(attr);
+
+        // initialize internal rbfm and ix
         RecordBasedFileManager& rbfm = RecordBasedFileManager::instance();
         this->rbfm = &rbfm;
+
+        IndexManager& ix = IndexManager::instance();
+        this->ix = &ix;
     }
 
     RelationManager::~RelationManager() = default;
@@ -123,13 +132,10 @@ namespace PeterDB {
     RC RelationManager::deleteTable(const std::string &tableName) {
         if (tableName == "Tables" || tableName == "Columns") return -1;
 
-        char* data = (char*) malloc(1+INT_SIZE);
         RID TablesRid;
-        RC errCode = getTableId(tableName, TablesRid, data);
-        if (errCode != 0) return errCode;
-
         int tableId;
-        memcpy(&tableId, (char*) data+1, INT_SIZE);
+        RC errCode = getTableId(tableName, TablesRid, tableId);
+        if (errCode != 0) return errCode;
 
         // Delete record from Tables table
         FileHandle tablesFileHandle;
@@ -142,29 +148,95 @@ namespace PeterDB {
         errCode = rbfm->closeFile(tablesFileHandle);
         if (errCode != 0) return errCode;
 
-        // Delete records form Columns table
-        int* value = &tableId;
-
+        // Delete records from Columns table, and destroy any associated index files
         std::vector<std::string> attributeNames;
-        attributeNames.emplace_back("table-id");
+        attributeNames.emplace_back("column-indexed");
+        attributeNames.emplace_back("column-name");
 
         RM_ScanIterator rmScanIterator;
-        errCode = scan("Columns", "table-id", EQ_OP, value, attributeNames, rmScanIterator);
-        if (errCode != 0) return errCode;
-
-        FileHandle columnsFileHandle;
-        errCode = rbfm->openFile("Columns", columnsFileHandle);
+        errCode = scan("Columns", "table-id", EQ_OP, &tableId, attributeNames, rmScanIterator);
         if (errCode != 0) return errCode;
 
         RID ColumnsRid;
-        while (rmScanIterator.getNextTuple(ColumnsRid, data) != RM_EOF) {
-            errCode = rbfm->deleteRecord(columnsFileHandle, tablesRecordDescriptor, ColumnsRid);
+        void* columnInfoData = malloc(1+INT_SIZE+TAB_COL_VC_LEN);
+        while (rmScanIterator.getNextTuple(ColumnsRid, columnInfoData) != RM_EOF) {
+            errCode = rbfm->deleteRecord(rmScanIterator.rbfm_scanIterator.fileHandle, columnsRecordDescriptor, ColumnsRid);
             if (errCode != 0) return errCode;
+
+            int column_indexed;
+            memcpy(&column_indexed, (char*) columnInfoData+1, INT_SIZE);
+
+            if (column_indexed) {
+                unsigned varCharLen;
+                memcpy(&varCharLen, (char*) columnInfoData+1+INT_SIZE, VC_LEN_SIZE);
+                char* attrNamePtr = (char*) malloc(varCharLen);
+                memcpy(attrNamePtr, (char*) columnInfoData+1+INT_SIZE+VC_LEN_SIZE, varCharLen);
+                std::string attributeName = std::string(attrNamePtr, varCharLen);
+                free(attrNamePtr);
+
+                // destroy index file
+                std::string indexFileName = tableName+"_"+attributeName+".idx";
+                errCode = ix->destroyFile(indexFileName);
+                if (errCode != 0) return errCode;
+            }
         }
         rmScanIterator.close();
-        free(data);
+        free(columnInfoData);
 
         errCode = rbfm->destroyFile(tableName);
+        if (errCode != 0) return errCode;
+
+        return 0;
+    }
+
+    RC RelationManager::createIndex(const std::string &tableName, const std::string &attributeName) {
+        // test if index already exist for the attribute
+        bool isIndexed;
+        RC errCode = getIndexed(tableName, attributeName, isIndexed);
+        if (errCode != 0) return errCode;
+        if (isIndexed) return -1;  // index already exist
+
+        // update column_indexed for the attribute
+        errCode = setIndexed(tableName, attributeName, true);
+        if (errCode != 0) return errCode;
+
+        // create index file
+        std::string indexFileName = tableName+"_"+attributeName+".idx";
+        errCode = ix->createFile(indexFileName);
+        if (errCode != 0) return errCode;
+
+        // add all existing entries into index file
+        std::vector<std::string> attributeNames;
+        attributeNames.emplace_back(attributeName);
+
+        RM_ScanIterator rmScanIterator;
+        errCode = scan(tableName, "", NO_OP, nullptr, attributeNames, rmScanIterator);
+        if (errCode != 0) return errCode;
+
+        RID rid;
+        void* dumData = malloc(PAGE_SIZE);
+        while (rmScanIterator.getNextTuple(rid, dumData) != RM_EOF) {
+            errCode = insertOrDeleteEntry(tableName, rid, attributeName, indexFileName, true);
+            if (errCode != 0) return errCode;
+        }
+        free(dumData);
+        return 0;
+    }
+
+    RC RelationManager::destroyIndex(const std::string &tableName, const std::string &attributeName) {
+        // test if index already exist for the attribute
+        bool isIndexed;
+        RC errCode = getIndexed(tableName, attributeName, isIndexed);
+        if (errCode != 0) return errCode;
+        if (!isIndexed) return -1;  // index doesn't exist
+
+        // update column_indexed for the attribute
+        errCode = setIndexed(tableName, attributeName,false);
+        if (errCode != 0) return errCode;
+
+        // destroy index file
+        std::string indexFileName = tableName+"_"+attributeName+".idx";
+        errCode = ix->destroyFile(indexFileName);
         if (errCode != 0) return errCode;
 
         return 0;
@@ -174,14 +246,10 @@ namespace PeterDB {
         if (tableName == "Tables") attrs = tablesRecordDescriptor;
         else if (tableName == "Columns") attrs = columnsRecordDescriptor;
         else {
-            void* data = malloc(1+INT_SIZE);
             RID dumRid;
-            RC errCode = getTableId(tableName, dumRid, data);
-            if (errCode != 0) return errCode;
-
             int tableId;
-            memcpy(&tableId, (char*) data+1, INT_SIZE);
-            free(data);
+            RC errCode = getTableId(tableName, dumRid, tableId);
+            if (errCode != 0) return errCode;
 
             errCode = buildRecordDescriptor(tableId, attrs);
             if (errCode != 0) return errCode;
@@ -196,6 +264,7 @@ namespace PeterDB {
         RC errCode = getAttributes(tableName, recordDescriptor);
         if (errCode != 0) return errCode;
 
+        // insert record
         FileHandle fileHandle;
         errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
@@ -205,6 +274,19 @@ namespace PeterDB {
 
         errCode = rbfm->closeFile(fileHandle);
         if (errCode != 0) return errCode;
+
+        // insert corresponding entry for all indexed attributes
+        bool isIndexed;
+        for (Attribute attr : recordDescriptor) {
+            errCode = getIndexed(tableName, attr.name, isIndexed);
+            if (errCode != 0) return errCode;
+
+            if (isIndexed) {
+                std::string indexFileName = tableName+"_"+attr.name+".idx";
+                errCode = insertOrDeleteEntry(tableName, rid, attr.name, indexFileName, true);
+                if (errCode != 0) return errCode;
+            }
+        }
 
         return 0;
     }
@@ -216,6 +298,20 @@ namespace PeterDB {
         RC errCode = getAttributes(tableName, recordDescriptor);
         if (errCode != 0) return errCode;
 
+        // delete corresponding entry for all indexed attributes
+        bool isIndexed;
+        for (Attribute attr : recordDescriptor) {
+            errCode = getIndexed(tableName, attr.name, isIndexed);
+            if (errCode != 0) return errCode;
+
+            if (isIndexed) {
+                std::string indexFileName = tableName+"_"+attr.name+".idx";
+                errCode = insertOrDeleteEntry(tableName, rid, attr.name, indexFileName, false);
+                if (errCode != 0) return errCode;
+            }
+        }
+
+        // delete record
         FileHandle fileHandle;
         errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
@@ -236,6 +332,20 @@ namespace PeterDB {
         RC errCode = getAttributes(tableName, recordDescriptor);
         if (errCode != 0) return errCode;
 
+        // delete corresponding entry for all indexed attributes
+        bool isIndexed;
+        for (Attribute attr : recordDescriptor) {
+            errCode = getIndexed(tableName, attr.name, isIndexed);
+            if (errCode != 0) return errCode;
+
+            if (isIndexed) {
+                std::string indexFileName = tableName+"_"+attr.name+".idx";
+                errCode = insertOrDeleteEntry(tableName, rid, attr.name, indexFileName, false);
+                if (errCode != 0) return errCode;
+            }
+        }
+
+        // update record
         FileHandle fileHandle;
         errCode = rbfm->openFile(tableName, fileHandle);
         if (errCode != 0) return errCode;
@@ -245,6 +355,18 @@ namespace PeterDB {
 
         errCode = rbfm->closeFile(fileHandle);
         if (errCode != 0) return errCode;
+
+        // insert corresponding entry for all indexed attributes
+        for (Attribute attr : recordDescriptor) {
+            errCode = getIndexed(tableName, attr.name, isIndexed);
+            if (errCode != 0) return errCode;
+
+            if (isIndexed) {
+                std::string indexFileName = tableName+"_"+attr.name+".idx";
+                errCode = insertOrDeleteEntry(tableName, rid, attr.name, indexFileName, true);
+                if (errCode != 0) return errCode;
+            }
+        }
 
         return 0;
     }
@@ -310,24 +432,24 @@ namespace PeterDB {
         return 0;
     }
 
-    // QE IX related
-    RC RelationManager::createIndex(const std::string &tableName, const std::string &attributeName) {
-        return -1;
-    }
-
-    RC RelationManager::destroyIndex(const std::string &tableName, const std::string &attributeName) {
-        return -1;
-    }
-
     // indexScan returns an iterator to allow the caller to go through qualified entries in index
-    RC RelationManager::indexScan(const std::string &tableName,
-                 const std::string &attributeName,
-                 const void *lowKey,
-                 const void *highKey,
-                 bool lowKeyInclusive,
-                 bool highKeyInclusive,
-                 RM_IndexScanIterator &rm_IndexScanIterator) {
-        return -1;
+    RC RelationManager::indexScan(const std::string &tableName, const std::string &attributeName,
+                                  const void *lowKey, const void *highKey,
+                                  bool lowKeyInclusive, bool highKeyInclusive,
+                                  RM_IndexScanIterator &rm_IndexScanIterator) {
+        std::string indexFileName = tableName+"_"+attributeName+".idx";
+        RC errCode = ix->openFile(indexFileName, *rm_IndexScanIterator.ix_scanIterator.ixFileHandle);
+        if (errCode != 0) return errCode;
+
+        Attribute attribute;
+        errCode = buildAttrDescriptor(tableName, attributeName, attribute);
+        if (errCode != 0) return errCode;
+
+        errCode = ix->scan(*rm_IndexScanIterator.ix_scanIterator.ixFileHandle, attribute, lowKey, highKey,
+                           lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ix_scanIterator);
+        if (errCode != 0) return errCode;
+
+        return 0;
     }
 
     // Extra credit work
@@ -388,8 +510,10 @@ namespace PeterDB {
         RC errCode = rbfm->openFile("Columns", fileHandle);
         if (errCode != 0) return errCode;
 
-        char* recordBuffer = (char*) malloc(TAB_COL_NULL_SIZE+4*INT_SIZE+VC_LEN_SIZE+TAB_COL_VC_LEN);
+        char* recordBuffer = (char*) malloc(
+                TAB_COL_NULL_SIZE+3*INT_SIZE+VC_LEN_SIZE+TAB_COL_VC_LEN+ATTR_TYPE_SIZE+ATTR_LEN_SIZE);
         int column_position = 1;
+        int column_indexed = 0;
         for (Attribute attr : recordDescriptor) {
             // Generate record for Columns table
             unsigned recordBufferPtr = 0;
@@ -414,6 +538,9 @@ namespace PeterDB {
             recordBufferPtr += ATTR_LEN_SIZE;
 
             memcpy((char*) recordBuffer+recordBufferPtr, &column_position, INT_SIZE);
+            recordBufferPtr += INT_SIZE;
+
+            memcpy((char*) recordBuffer+recordBufferPtr, &column_indexed, INT_SIZE);
             column_position++;
 
             // Insert record to Columns table
@@ -430,36 +557,7 @@ namespace PeterDB {
         return 0;
     }
 
-    int RelationManager::getMaxTableId() {
-        // Try open Tables at input mode. If unsuccessful, doesn't exist
-        std::fstream tablesCatalogFile;
-        tablesCatalogFile.open("Tables", std::ios::in | std::ios::binary);
-        if (tablesCatalogFile.is_open()) tablesCatalogFile.close();
-        else return 0;
-
-        std::vector<std::string> attributeNames;
-        attributeNames.emplace_back("table-id");
-
-        RM_ScanIterator rmScanIterator;
-        RC errCode = scan("Tables", "", NO_OP, nullptr, attributeNames, rmScanIterator);
-        if (errCode != 0) return -1;
-
-        RID dumRid;
-        void* data = malloc(1+INT_SIZE);
-        int maxTableId = 0;
-        int currTableId = 0;
-        while (rmScanIterator.getNextTuple(dumRid, data) != RM_EOF) {
-            memcpy(&currTableId, (char*) data+1, INT_SIZE);
-            if (currTableId > maxTableId) {
-                maxTableId = currTableId;
-            }
-        }
-        free(data);
-        rmScanIterator.close();
-        return maxTableId;
-    }
-
-    RC RelationManager::getTableId(const std::string &tableName, RID &rid, void* data) {
+    RC RelationManager::getTableId(const std::string &tableName, RID &rid, int& tableId) {
         unsigned varCharLen = tableName.size();
         void* value = malloc(VC_LEN_SIZE + varCharLen);
         memcpy(value, &varCharLen, VC_LEN_SIZE);
@@ -472,29 +570,31 @@ namespace PeterDB {
         RC errCode = scan("Tables", "table-name", EQ_OP, value, attributeNames, rmScanIterator);
         if (errCode != 0) return errCode;
 
+        void* data = malloc(1+INT_SIZE);
         if (rmScanIterator.getNextTuple(rid, data) != RM_EOF) {
+            memcpy(&tableId, (char*) data+1, INT_SIZE);
             rmScanIterator.close();
             free(value);
+            free(data);
             return 0;
         }
         // Didn't find table
         else {
             rmScanIterator.close();
             free(value);
+            free(data);
             return -1;
         }
     }
 
     RC RelationManager::buildRecordDescriptor(int tableId, std::vector<Attribute> &attrs) {
-        int* value = &tableId;
-
         std::vector<std::string> attributeNames;
         attributeNames.emplace_back("column-name");
         attributeNames.emplace_back("column-type");
         attributeNames.emplace_back("column-length");
 
         RM_ScanIterator rmScanIterator;
-        RC errCode = scan("Columns", "table-id", EQ_OP, value, attributeNames, rmScanIterator);
+        RC errCode = scan("Columns", "table-id", EQ_OP, &tableId, attributeNames, rmScanIterator);
         if (errCode != 0) return errCode;
 
         RID dumRid;
@@ -528,6 +628,177 @@ namespace PeterDB {
         return 0;
     }
 
+    int RelationManager::getMaxTableId() {
+        // Try open Tables at input mode. If unsuccessful, doesn't exist
+        std::fstream tablesCatalogFile;
+        tablesCatalogFile.open("Tables", std::ios::in | std::ios::binary);
+        if (tablesCatalogFile.is_open()) tablesCatalogFile.close();
+        else return 0;
+
+        std::vector<std::string> attributeNames;
+        attributeNames.emplace_back("table-id");
+
+        RM_ScanIterator rmScanIterator;
+        RC errCode = scan("Tables", "", NO_OP, nullptr, attributeNames, rmScanIterator);
+        if (errCode != 0) return errCode;
+
+        RID dumRid;
+        void* data = malloc(1+INT_SIZE);
+        int maxTableId = 0;
+        int currTableId = 0;
+        while (rmScanIterator.getNextTuple(dumRid, data) != RM_EOF) {
+            memcpy(&currTableId, (char*) data+1, INT_SIZE);
+            if (currTableId > maxTableId) {
+                maxTableId = currTableId;
+            }
+        }
+        free(data);
+        rmScanIterator.close();
+        return maxTableId;
+    }
+
+    RC RelationManager::getColumnRid(const std::string &tableName, const std::string &attributeName, RID& ColumnsRid) {
+        RID dumRid;
+        int tableId;
+        RC errCode = getTableId(tableName, dumRid, tableId);
+        if (errCode != 0) return errCode;
+
+        std::vector<std::string> attributeNames;
+        attributeNames.emplace_back("column-name");
+
+        RM_ScanIterator rmScanIterator;
+        errCode = scan("Columns", "table-id", EQ_OP, &tableId, attributeNames, rmScanIterator);
+        if (errCode != 0) return errCode;
+
+        void* columnNameData = malloc(TAB_COL_VC_LEN);
+        bool attributeFound = false;
+        while (rmScanIterator.getNextTuple(ColumnsRid, columnNameData) != RM_EOF) {
+            unsigned varCharLen;
+            memcpy(&varCharLen, (char*) columnNameData+1, VC_LEN_SIZE);
+            char* dataVarChar = (char*) malloc(varCharLen);
+            memcpy(dataVarChar, (char*) columnNameData+1+VC_LEN_SIZE, varCharLen);
+
+            if (std::string(dataVarChar, varCharLen) == attributeName) {
+                attributeFound = true;
+                free(dataVarChar);
+                break;
+            }
+            free(dataVarChar);
+        }
+        rmScanIterator.close();
+        free(columnNameData);
+
+        if (attributeFound) return 0;
+        else return -1;
+    }
+
+    RC RelationManager::getIndexed(const std::string &tableName, const std::string &attributeName, bool& isIndexed) {
+        // find the RID in "Columns" table of the table-attribute pair
+        RID ColumnsRid;
+        RC errCode = getColumnRid(tableName, attributeName, ColumnsRid);
+        if (errCode != 0) return errCode;
+
+        FileHandle columnsFileHandle;
+        errCode = rbfm->openFile("Columns", columnsFileHandle);
+        if (errCode != 0) return errCode;
+
+        void* isIndexedData = malloc(1+INT_SIZE);
+        errCode = rbfm->readAttribute(columnsFileHandle, columnsRecordDescriptor, ColumnsRid, "column-indexed", isIndexedData);
+        if (errCode != 0) return errCode;
+
+        errCode = rbfm->closeFile(columnsFileHandle);
+        if (errCode != 0) return errCode;
+
+        int column_indexed;
+        memcpy(&column_indexed, (char*) isIndexedData+1, INT_SIZE);
+        free(isIndexedData);
+
+        if (column_indexed) isIndexed = true;
+        else isIndexed = false;
+        return 0;
+    }
+
+    RC RelationManager::setIndexed(const std::string &tableName, const std::string &attributeName, bool isIndexed) {
+        // find the RID in "Columns" table of the table-attribute pair
+        RID ColumnsRid;
+        RC errCode = getColumnRid(tableName, attributeName, ColumnsRid);
+        if (errCode != 0) return errCode;
+
+        char* columnsRecord = (char*) malloc(TAB_COL_NULL_SIZE+3*INT_SIZE+VC_LEN_SIZE+attributeName.size()+ATTR_TYPE_SIZE+ATTR_LEN_SIZE);
+        FileHandle columnsFileHandle;
+        errCode = rbfm->openFile("Columns", columnsFileHandle);
+        if (errCode != 0) return errCode;
+
+        errCode = rbfm->readRecord(columnsFileHandle, columnsRecordDescriptor, ColumnsRid, columnsRecord);
+        if (errCode != 0) return errCode;
+
+        int column_indexed;
+        if (isIndexed) column_indexed = 1;
+        else column_indexed = 0;
+        memcpy(columnsRecord+TAB_COL_NULL_SIZE+2*INT_SIZE+VC_LEN_SIZE+attributeName.size()+ATTR_TYPE_SIZE+ATTR_LEN_SIZE, &column_indexed, INT_SIZE);
+
+        errCode = rbfm->updateRecord(columnsFileHandle, columnsRecordDescriptor, columnsRecord, ColumnsRid);
+        if (errCode != 0) return errCode;
+
+        errCode = rbfm->closeFile(columnsFileHandle);
+        if (errCode != 0) return errCode;
+        free(columnsRecord);
+        return 0;
+    }
+
+    RC RelationManager::buildAttrDescriptor(const std::string &tableName, const std::string &attributeName, Attribute& attribute) {
+        std::vector<Attribute> recordDescriptor;
+        RC errCode = getAttributes(tableName, recordDescriptor);
+        if (errCode != 0) return errCode;
+
+        for (Attribute attr : recordDescriptor) {
+            if (attr.name == attributeName) {
+                attribute = attr;
+                break;
+            }
+        }
+        return 0;
+    }
+
+    RC RelationManager::insertOrDeleteEntry(const std::string &tableName, const RID &rid, const std::string &attributeName,
+                                            const std::string &indexFileName, bool insert) {
+        void* entryData = malloc(PAGE_SIZE);
+        RC errCode = readAttribute(tableName, rid, attributeName, entryData);
+        if (errCode != 0) return errCode;
+
+        Attribute attribute;
+        errCode = buildAttrDescriptor(tableName, attributeName, attribute);
+        if (errCode != 0) return errCode;
+
+        unsigned short entryLength;
+        if (attribute.type == TypeVarChar) {
+            unsigned varCharLen;
+            memcpy(&varCharLen, (char*) entryData+1, VC_LEN_SIZE);
+            entryLength = VC_LEN_SIZE + varCharLen;
+        }
+        else {
+            entryLength = INT_OR_FLT_SIZE;
+        }
+
+        void* entry = malloc(entryLength);
+        memcpy(entry, (char*) entryData+1, entryLength);
+        free(entryData);
+
+        IXFileHandle ixFileHandle;
+        errCode = ixFileHandle.fileHandle.openFile(indexFileName);
+        if (errCode != 0) return errCode;
+
+        if (insert) errCode = ix->insertEntry(ixFileHandle, attribute, entry, rid);
+        else errCode = ix->deleteEntry(ixFileHandle, attribute, entry, rid);
+        if (errCode != 0) return errCode;
+        free(entry);
+
+        errCode = ixFileHandle.fileHandle.closeFile();
+        if (errCode != 0) return errCode;
+
+        return 0;
+    }
+
     /***********************************************/
     /*******   functions of RM_ScanIterator  *******/
     /***********************************************/
@@ -550,11 +821,18 @@ namespace PeterDB {
     /*****  functions of RM_IndexScanIterator  *******/
     /*************************************************/
     RC RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {
-        return -1;
+        RC errCode = ix_scanIterator.getNextEntry(rid, key);
+        if (errCode == IX_EOF) return RM_EOF;
+        else return errCode;
     }
 
     RC RM_IndexScanIterator::close() {
-        return -1;
+        RC errCode = ix_scanIterator.close();
+        if (errCode != 0) return errCode;
+
+        errCode = ix_scanIterator.ixFileHandle->fileHandle.closeFile();
+        if (errCode != 0) return errCode;
+        return 0;
     }
 
 } // namespace PeterDB

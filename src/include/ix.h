@@ -134,9 +134,10 @@ namespace PeterDB {
         // Terminate index scan
         RC close();
 
+        IXFileHandle* ixFileHandle;
+
     private:
         IndexManager* ix;
-        IXFileHandle* ixFileHandle;
 
         AttrType attrType;
         const void* lowKey;
