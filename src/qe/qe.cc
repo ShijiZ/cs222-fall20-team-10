@@ -376,11 +376,14 @@ namespace PeterDB {
         this->rightIn->getAttributes(this->rightAttrs);
         this->isFirstGetNextTuple = true;
         this->block = malloc(numPages * PAGE_SIZE);
-        this->rightTuple = malloc(getMaxTupleLength(this->rightAttrs));
         this->leftTuple = malloc(getMaxTupleLength(this->leftAttrs));
+        this->rightTuple = malloc(getMaxTupleLength(this->rightAttrs));
+        this->vectorIsEmpty = true;
+        this->isRM_EOF = false;
         for (Attribute leftAttr : this->leftAttrs){
             if (this->condition.lhsAttr == leftAttr.name){
                 this->keyType = leftAttr.type;
+                break;
             }
         }
     }
@@ -399,29 +402,36 @@ namespace PeterDB {
             RC errCode = getNextBlockAndHash();
             if (errCode != 0) return QE_EOF;
         }
-        RC rightScan = rightIn->getNextTuple(rightTuple);
+        if (vectorIsEmpty) {
+            rightScan = rightIn->getNextTuple(rightTuple);
+            vectorIsEmpty = false;
+        }
+
         TupleRef leftTupleRef;
-        while (rightScan != RM_EOF || getNextBlockAndHash() != -1){
+        while (rightScan != RM_EOF || getNextBlockAndHash() == 0){
             if (rightScan == RM_EOF){
                 rightIn->setIterator();
                 RC errCode = rightIn->getNextTuple(rightTuple);
+                vectorIsEmpty = false;
                 if (errCode != 0) return -1;  // -1 impossible
             }
             parseTuple(rightTuple, keyPtr, rightTupleLength, rightAttrs, condition.rhsAttr);
             if (keyType == TypeVarChar){
-                int keyVarCharLen;
+                unsigned keyVarCharLen;
                 memcpy(&keyVarCharLen, (char*) rightTuple + keyPtr, VC_LEN_SIZE);
                 char* keyVarChar = (char*) malloc(keyVarCharLen);
-                memcpy(keyVarChar, (char* )rightTuple + keyPtr + VC_LEN_SIZE, keyVarCharLen);
+                memcpy(keyVarChar, (char*) rightTuple + keyPtr + VC_LEN_SIZE, keyVarCharLen);
                 std::string varCharRightKey = std::string(keyVarChar, keyVarCharLen);
                 free(keyVarChar);
                 if (varCharHashTable.find(varCharRightKey) != varCharHashTable.end() && !varCharHashTable[varCharRightKey].empty()){
                     leftTupleRef = varCharHashTable[varCharRightKey].back();
                     varCharHashTable[varCharRightKey].pop_back();
-                    memcpy(leftTuple, (char* ) block + leftTupleRef.offset, leftTupleRef.length);
+                    memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
+                    if (varCharHashTable[varCharRightKey].empty())  vectorIsEmpty = true;
                 }
                 else {
                     rightScan = rightIn->getNextTuple(rightTuple);
+                    vectorIsEmpty = false;
                     continue;
                 }
             }
@@ -432,9 +442,11 @@ namespace PeterDB {
                     leftTupleRef = intHashTable[intRightKey].back();
                     intHashTable[intRightKey].pop_back();
                     memcpy(leftTuple, (char* ) block + leftTupleRef.offset, leftTupleRef.length);
+                    if (intHashTable[intRightKey].empty())  vectorIsEmpty = true;
                 }
                 else {
                     rightScan = rightIn->getNextTuple(rightTuple);
+                    vectorIsEmpty = false;
                     continue;
                 }
             }
@@ -445,9 +457,11 @@ namespace PeterDB {
                     leftTupleRef = realHashTable[realRightKey].back();
                     realHashTable[realRightKey].pop_back();
                     memcpy(leftTuple, (char* ) block + leftTupleRef.offset, leftTupleRef.length);
+                    if (realHashTable[realRightKey].empty())  vectorIsEmpty = true;
                 }
                 else {
                     rightScan = rightIn->getNextTuple(rightTuple);
+                    vectorIsEmpty = false;
                     continue;
                 }
             }
@@ -465,6 +479,9 @@ namespace PeterDB {
     }
 
     RC BNLJoin::getNextBlockAndHash() {
+        if (isRM_EOF){
+            return RM_EOF;
+        }
         int tupleOffset = 0;
         short tupleLength;
         int keyPtr;
@@ -495,19 +512,19 @@ namespace PeterDB {
             if (keyType == TypeVarChar){
                 unsigned varCharLen;
                 memcpy(&varCharLen, (char*) block + tupleOffset + keyPtr, VC_LEN_SIZE);
-                char* VarChar = (char*) malloc(varCharLen);
-                memcpy(VarChar, (char*) block + tupleOffset + keyPtr + VC_LEN_SIZE, varCharLen);
-                std::string keyVarChar = std::string(VarChar, varCharLen);
+                char* varChar = (char*) malloc(varCharLen);
+                memcpy(varChar, (char*) block + tupleOffset + keyPtr + VC_LEN_SIZE, varCharLen);
+                std::string keyVarChar = std::string(varChar, varCharLen);
                 if (varCharHashTable.find(keyVarChar) == varCharHashTable.end()){
                     varCharHashTable[keyVarChar] = std::vector<TupleRef>();
                 }
                 varCharHashTable[keyVarChar].push_back(tupleRef);
-                free(VarChar);
+                free(varChar);
             }
             if (tupleOffset + tupleLength > numPages * PAGE_SIZE - maxTupleLength) return 0;
             tupleOffset += tupleLength;
         }
-        if (tupleOffset == 0) return RM_EOF;
+        isRM_EOF = true;
         return 0;
     }
 
@@ -599,9 +616,11 @@ namespace PeterDB {
         this->aggAttr = aggAttr;
         this->op = op;
         this->aggItr->getAttributes(this->attrs);
+        this->isFirstGetNextTuple = true;
         this->group = false;
         this->minVal = std::numeric_limits<float>::max();
         this->maxVal = std::numeric_limits<float>::min();
+        this->sumVal = 0;
         this->count = 0;
 
     }
@@ -615,6 +634,7 @@ namespace PeterDB {
         this->group = true;
         this->minVal = std::numeric_limits<float>::max();
         this->maxVal = std::numeric_limits<float>::min();
+        this->sumVal = 0;
         this->count = 0;
     }
 
@@ -623,6 +643,10 @@ namespace PeterDB {
     }
 
     RC Aggregate::getNextTuple(void *data) {
+        if (!isFirstGetNextTuple){
+            return QE_EOF;
+        }
+        isFirstGetNextTuple = false;
         void* tupleBuffer = malloc(getMaxTupleLength(attrs));
         void* targetAttribute = malloc(getMaxTupleLength(attrs));
         if (!group){
@@ -648,34 +672,35 @@ namespace PeterDB {
                 count ++;
             }
             avgVal = sumVal / count;
+            int nullIndicatorSize = 1;
+            char nullIndicator = 0;  // 00000000
+            memcpy((char*) data, &nullIndicator, nullIndicatorSize);
             switch (op){
                 case MIN:
-                    memcpy((char*) data + 1, &minVal, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &minVal, FLT_SIZE);
                     break;
                 case MAX:
-                    memcpy((char*) data + 1, &maxVal, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &maxVal, FLT_SIZE);
+                    std::cout <<"inside agg getNextTuple maxVal is "<< maxVal << std::endl;
                     break;
                 case SUM:
-                    memcpy((char*) data + 1, &sumVal, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &sumVal, FLT_SIZE);
                     break;
                 case AVG:
-                    memcpy((char*) data + 1, &avgVal, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &avgVal, FLT_SIZE);
                     break;
                 case COUNT:
-                    memcpy((char*) data + 1, &count, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &count, FLT_SIZE);
                     break;
             }
-            int nullIndicatorSize = 1;
-            char* nullIndicator = (char*) malloc(nullIndicatorSize);
-            memset(nullIndicator, 0, nullIndicatorSize);
-            memcpy(data, nullIndicator, nullIndicatorSize);
             free(tupleBuffer);
             free(targetAttribute);
-            free(nullIndicator);
+            //free(nullIndicator);
             return 0;
         }
         else{
             // TODO
+            return -1;
         }
     }
 
@@ -700,6 +725,7 @@ namespace PeterDB {
                 break;
         }
         Attribute attr = aggAttr;
+        attr.type = TypeReal;
         attr.name = opName + '(' + attr.name + ')' ;
         attrs.push_back(attr);
 

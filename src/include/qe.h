@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <cstring>
 
 #include "rm.h"
 #include "ix.h"
@@ -234,17 +235,17 @@ namespace PeterDB {
         std::vector<Attribute> rightAttrs;
         Condition condition;
         unsigned numPages;
-        void* rightTuple;
         void* leftTuple;
-        AttrType  keyType;
+        void* rightTuple;
+        AttrType keyType;
         void* block;
         bool isFirstGetNextTuple;
         std::unordered_map<int, std::vector<TupleRef>> intHashTable;
         std::unordered_map<float, std::vector<TupleRef>> realHashTable;
         std::unordered_map<std::string, std::vector<TupleRef>> varCharHashTable;
-        //int intRightKey;
-        //float realRightKey;
-        //std::string varCharRightKey;
+        RC rightScan;
+        bool vectorIsEmpty;
+        bool isRM_EOF;
 
         RC getNextBlockAndHash();
     };
@@ -326,6 +327,7 @@ namespace PeterDB {
         Attribute aggAttr;
         AggregateOp op;
         std::vector<Attribute> attrs;
+        bool isFirstGetNextTuple;
         Attribute groupAttr;
         bool group;
         float minVal;

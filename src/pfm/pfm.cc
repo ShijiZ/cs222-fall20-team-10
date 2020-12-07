@@ -87,9 +87,12 @@ namespace PeterDB {
 
     RC FileHandle::openFile(const std::string &fileName) {
         // Test if fileToBeHandled is already open
+        //std::cout<<"inside fileHandle openFile, before file is open "<<std::endl;
         if (fileToBeHandled->is_open()) {
+            //std::cout<<"inside fileHandle openFile, inside if file is open "<<std::endl;
             return -1;
         }
+        //std::cout<<"inside fileHandle openFile, before open "<<std::endl;
         fileToBeHandled->open(fileName, std::ios::in | std::ios::out | std::ios::binary);
         if (fileToBeHandled->is_open()) {
             readHiddenPage();
