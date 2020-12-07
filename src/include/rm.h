@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "src/include/rbfm.h"
+#include "src/include/ix.h"
 
 namespace PeterDB {
 #define RM_EOF (-1)  // end of a scan operator
@@ -38,6 +39,8 @@ namespace PeterDB {
         RC getNextEntry(RID &rid, void *key);    // Get next matching entry
 
         RC close();                              // Terminate index scan
+
+        IX_ScanIterator ix_scanIterator;
     };
 
     // Relation Manager
@@ -52,6 +55,10 @@ namespace PeterDB {
         RC createTable(const std::string &tableName, const std::vector<Attribute> &attrs);
 
         RC deleteTable(const std::string &tableName);
+
+        RC createIndex(const std::string &tableName, const std::string &attributeName);
+
+        RC destroyIndex(const std::string &tableName, const std::string &attributeName);
 
         RC getAttributes(const std::string &tableName, std::vector<Attribute> &attrs);
 
@@ -78,11 +85,6 @@ namespace PeterDB {
                 const std::vector<std::string> &attributeNames, // a list of projected attributes
                 RM_ScanIterator &rm_ScanIterator);
 
-        // QE IX related
-        RC createIndex(const std::string &tableName, const std::string &attributeName);
-
-        RC destroyIndex(const std::string &tableName, const std::string &attributeName);
-
         // indexScan returns an iterator to allow the caller to go through qualified entries in index
         RC indexScan(const std::string &tableName,
                      const std::string &attributeName,
@@ -100,6 +102,8 @@ namespace PeterDB {
     private:
         RecordBasedFileManager* rbfm;
 
+        IndexManager* ix;
+
         std::vector<Attribute> tablesRecordDescriptor;
 
         std::vector<Attribute> columnsRecordDescriptor;
@@ -111,11 +115,22 @@ namespace PeterDB {
 
         RC insertColumnsRecord(int table_id, const std::vector<Attribute>& recordDescriptor);
 
-        int getMaxTableId();
-
-        RC getTableId(const std::string &tableName, RID &rid, void *data);
+        RC getTableId(const std::string &tableName, RID &rid, int& tableId);
 
         RC buildRecordDescriptor(int tableId, std::vector<Attribute> &attrs);
+
+        int getMaxTableId();
+
+        RC getColumnRid(const std::string &tableName, const std::string &attributeName, RID& ColumnsRid);
+
+        RC getIndexed(const std::string &tableName, const std::string &attributeName, bool& isIndexed);
+
+        RC setIndexed(const std::string &tableName, const std::string &attributeName, bool isIndexed);
+
+        RC buildAttrDescriptor(const std::string &tableName, const std::string &attributeName, Attribute& attribute);
+
+        RC insertOrDeleteEntry(const std::string &tableName, const RID &rid, const std::string &attributeName,
+                               const std::string &indexFileName, bool insert);
 
     protected:
         RelationManager();                                                  // Prevent construction
