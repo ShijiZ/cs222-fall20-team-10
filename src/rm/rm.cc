@@ -438,14 +438,14 @@ namespace PeterDB {
                                   bool lowKeyInclusive, bool highKeyInclusive,
                                   RM_IndexScanIterator &rm_IndexScanIterator) {
         std::string indexFileName = tableName+"_"+attributeName+".idx";
-        RC errCode = ix->openFile(indexFileName, *rm_IndexScanIterator.ix_scanIterator.ixFileHandle);
+        RC errCode = ix->openFile(indexFileName, rm_IndexScanIterator.ixFileHandle);
         if (errCode != 0) return errCode;
 
         Attribute attribute;
         errCode = buildAttrDescriptor(tableName, attributeName, attribute);
         if (errCode != 0) return errCode;
 
-        errCode = ix->scan(*rm_IndexScanIterator.ix_scanIterator.ixFileHandle, attribute, lowKey, highKey,
+        errCode = ix->scan(rm_IndexScanIterator.ixFileHandle, attribute, lowKey, highKey,
                            lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ix_scanIterator);
         if (errCode != 0) return errCode;
 

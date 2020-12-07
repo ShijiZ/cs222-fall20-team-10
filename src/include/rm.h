@@ -6,6 +6,7 @@
 
 #include <string>
 #include <vector>
+#include <cstring>
 
 #include "src/include/rbfm.h"
 #include "src/include/ix.h"
@@ -41,6 +42,8 @@ namespace PeterDB {
         RC close();                              // Terminate index scan
 
         IX_ScanIterator ix_scanIterator;
+
+        IXFileHandle ixFileHandle;
     };
 
     // Relation Manager
