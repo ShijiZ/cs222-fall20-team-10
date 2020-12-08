@@ -9,42 +9,40 @@
  - Student 2 UCI NetID (if applicable): dahaih
  - Student 2 Name (if applicable): Dahai Hao
 
+
 ### 2. Meta-data
 - Show your meta-data design (Tables and Columns table) and information about each column.
 
-Tables table:
+- Tables table:
 
-Tables table has three columns: tableId, table_name and file_name. The format is shown below:
+  Tables table has three columns: tableId, table_name and file_name. The format is shown below:
+  
+  | tableId |   table_name  |   file_name  |
+  | :-----: | :-----------  | :----------  |
+  |    1    |     Tables    |    Tables    |
+  |    2    |     Columns   |    Columns   |
+  |    3    |   Other_table |  Other_table |
+  
+- Columns table:
+  
+  Columns table has five columns: tableId, column_name, column_type, column_length and column_position.
+  The format is shown below (suppose there is another table with 3 attributes):
+  
+  | tableId |   column_name   | column_type | column_length | column_position |
+  | :-----: | :-------------- | :---------- | :------------ | :-------------- |
+  |    1    |     tableId     |     Int     |       4       |        1        |
+  |    1    |    table_name   |   VarChar   |       50      |        2        |
+  |    1    |    file_name    |   VarChar   |       50      |        3        |
+  |    2    |     tableId     |     Int     |       4       |        1        |
+  |    2    |   column_name   |   VarChar   |       50      |        2        |
+  |    2    |   column_type   |     Int     |       4       |        3        |
+  |    2    |  column_length  |     Int     |       4       |        4        |
+  |    2    | column_position |     Int     |       4       |        5        |
+  |    3    |   attr_1_name   | attr_1_type | attr_1_length |        1        |
+  |    3    |   attr_2_name   | attr_2_type | attr_2_length |        2        |
+  |    3    |   attr_3_name   | attr_3_type | attr_3_length |        3        |
 
-| tableId |   table_name  |   file_name  |
-| :-----: | :-----------  | :----------  |
-|    1    |     Tables    |    Tables    |
-|    2    |     Columns   |    Cloumns   |
-|    3    |   Other_table |  Other_table |
-
-
-Columns table:
-
-Columns table has five columns: tableId, Column_name, Column_type, Cloumn_length and Column_position.
-The format is shown below (suppose there is another table with 3 attributes):
-
-| tableId |   Column_name   | Column_type | Cloumn_length | Column_position |
-| :-----: | :-------------- | :---------- | :------------ | :-------------- |
-|    1    |     tableId     |     Int     |       4       |        1        |
-|    1    |    table_name   |   VarChar   |       50      |        2        |
-|    1    |    file_name    |   VarChar   |       50      |        3        |
-|    2    |     tableId     |     Int     |       4       |        1        |
-|    2    |   Column_name   |   VarChar   |       50      |        2        |
-|    2    |   Column_type   |     Int     |       4       |        3        |
-|    2    |  Column_length  |     Int     |       4       |        4        |
-|    2    | Column_position |     Int     |       4       |        5        |
-|    3    |   Attr_1_name   | Attr_1_type | Attr_1_length | Attr_1_position |
-|    3    |   Attr_2_name   | Attr_2_type | Attr_2_length | Attr_2_position |
-|    3    |   Attr_3_name   | Attr_3_type | Attr_3_length | Attr_3_position |
-
-Note that we always assign tableId = 1 to Tables table and tableId = 2 to Columns table. 
-
-
+  Note that we always assign tableId = 1 to Tables table and tableId = 2 to Columns table. 
 
 
 ### 3. Internal Record Format (in case you have changed from P1, please re-enter here)
@@ -110,6 +108,7 @@ Note that we always assign tableId = 1 to Tables table and tableId = 2 to Column
   - appendPageCounter
   - numPages
 
+
 ### 6. Describe the following operation logic.
 - Delete a record
 
@@ -152,6 +151,7 @@ Note that we always assign tableId = 1 to Tables table and tableId = 2 to Column
 - Scan on updated records
 
   If the record is still on the original location (pageNum and slotNum), treat it as a normal record. If it has been moved to another page, just skip it on the current page and continue scanning the next record.
+
 
 ### 7. Implementation Detail
 - Other implementation details goes here.
