@@ -330,11 +330,20 @@ namespace PeterDB {
         bool isFirstGetNextTuple;
         Attribute groupAttr;
         bool group;
-        float minVal;
-        float maxVal;
-        float sumVal;
-        float avgVal;
-        float count;
+        std::unordered_map<int, std::vector<float>> intHashTable;
+        std::unordered_map<float, std::vector<float>> realHashTable;
+        std::unordered_map<std::string, std::vector<float>> varCharHashTable;
+        std::vector<float> minVal;
+        std::vector<float> maxVal;
+        std::vector<float> sumVal;
+        std::vector<float> avgVal;
+        std::vector<float> count;
+        std::vector<int> intGroupVector;
+        std::vector<float> realGroupVector;
+        std::vector<std::string>varCharGroupVector;
+        int groupCounter;
+        int numGetNextTuple;
+
     };
 } // namespace PeterDB
 
