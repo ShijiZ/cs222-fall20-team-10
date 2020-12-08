@@ -397,7 +397,7 @@ namespace PeterDB {
     RC BNLJoin::getNextTuple(void *data) {
         int keyPtr;
         short rightTupleLength;
-        if (isFirstGetNextTuple){
+        if (isFirstGetNextTuple) {
             isFirstGetNextTuple = false;
             RC errCode = getNextBlockAndHash();
             if (errCode != 0) return QE_EOF;
@@ -411,9 +411,8 @@ namespace PeterDB {
         while (rightScan != RM_EOF || getNextBlockAndHash() == 0){
             if (rightScan == RM_EOF){
                 rightIn->setIterator();
-                RC errCode = rightIn->getNextTuple(rightTuple);
+                rightScan = rightIn->getNextTuple(rightTuple);
                 vectorIsEmpty = false;
-                if (errCode != 0) return -1;  // -1 impossible
             }
             parseTuple(rightTuple, keyPtr, rightTupleLength, rightAttrs, condition.rhsAttr);
             if (keyType == TypeVarChar){
@@ -618,11 +617,11 @@ namespace PeterDB {
         this->aggItr->getAttributes(this->attrs);
         this->isFirstGetNextTuple = true;
         this->group = false;
-        this->minVal = std::numeric_limits<float>::max();
-        this->maxVal = std::numeric_limits<float>::min();
-        this->sumVal = 0;
-        this->count = 0;
-
+        this->minVal.push_back(std::numeric_limits<float>::max());
+        this->maxVal.push_back(std::numeric_limits<float>::min());
+        this->sumVal.push_back(0);
+        this->count.push_back(0);
+        this->avgVal.push_back(0);
     }
 
     Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, const Attribute &groupAttr, AggregateOp op) {
@@ -632,10 +631,17 @@ namespace PeterDB {
         this->aggItr->getAttributes(this->attrs);
         this->groupAttr = groupAttr;
         this->group = true;
-        this->minVal = std::numeric_limits<float>::max();
-        this->maxVal = std::numeric_limits<float>::min();
-        this->sumVal = 0;
-        this->count = 0;
+        this->minVal.push_back(std::numeric_limits<float>::max());
+        this->maxVal.push_back(std::numeric_limits<float>::min());
+        this->sumVal.push_back(0);
+        this->count.push_back(0);
+        this->avgVal.push_back(0);
+        this->groupCounter = 0;
+        this->numGetNextTuple = 0;
+        this->varCharGroupVector = std::vector<std::string>();
+        this->intGroupVector = std::vector<int>();
+        this->realGroupVector = std::vector<float>();
+        this->isFirstGetNextTuple = true;
     }
 
     Aggregate::~Aggregate() {
@@ -643,65 +649,215 @@ namespace PeterDB {
     }
 
     RC Aggregate::getNextTuple(void *data) {
-        if (!isFirstGetNextTuple){
+        if (!isFirstGetNextTuple && !group){
             return QE_EOF;
         }
-        isFirstGetNextTuple = false;
-        void* tupleBuffer = malloc(getMaxTupleLength(attrs));
-        void* targetAttribute = malloc(getMaxTupleLength(attrs));
-        if (!group){
+        int maxTupleLength = getMaxTupleLength(attrs);
+        void* tupleBuffer = malloc(maxTupleLength);
+        void* aggAttributeBuffer = malloc(maxTupleLength);
+        int nullIndicatorSize = 1;
+        char nullIndicator = 0;  // 00000000
+        memcpy((char*) data, &nullIndicator, nullIndicatorSize);
+        if (!group) {
+            isFirstGetNextTuple = false;
+
             while (aggItr->getNextTuple(tupleBuffer) != RM_EOF){
-                RC errCode = getTargetAttributeValue(attrs, tupleBuffer, aggAttr.name, targetAttribute);
+                RC errCode = getTargetAttributeValue(attrs, tupleBuffer, aggAttr.name, aggAttributeBuffer);
                 if (errCode != 0){
                     free(tupleBuffer);
-                    free(targetAttribute);
+                    free(aggAttributeBuffer);
                     return errCode;
                 }
                 float attrVal = 0;
                 if (aggAttr.type == TypeInt){
                     int intVal;
-                    memcpy(&intVal, targetAttribute, INT_SIZE);
+                    memcpy(&intVal, aggAttributeBuffer, INT_SIZE);
                     attrVal = (float) intVal;
                 }
-                else{
-                    memcpy(&attrVal, targetAttribute, FLT_SIZE);
-                }
-                minVal = attrVal < minVal ? attrVal : minVal;
-                maxVal = attrVal > maxVal ? attrVal : maxVal;
-                sumVal += attrVal;
-                count ++;
+                else memcpy(&attrVal, aggAttributeBuffer, FLT_SIZE);
+
+                minVal.back() = attrVal < minVal.back() ? attrVal : minVal.back();
+                maxVal.back() = attrVal > maxVal.back() ? attrVal : maxVal.back();
+                sumVal.back() += attrVal;
+                count.back()++;
             }
-            avgVal = sumVal / count;
-            int nullIndicatorSize = 1;
-            char nullIndicator = 0;  // 00000000
-            memcpy((char*) data, &nullIndicator, nullIndicatorSize);
-            switch (op){
+            avgVal.back() = sumVal.back() / count.back();
+
+            switch (op) {
                 case MIN:
-                    memcpy((char*) data + nullIndicatorSize, &minVal, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &minVal.back(), FLT_SIZE);
+                    minVal.pop_back();
                     break;
                 case MAX:
-                    memcpy((char*) data + nullIndicatorSize, &maxVal, FLT_SIZE);
-                    std::cout <<"inside agg getNextTuple maxVal is "<< maxVal << std::endl;
+                    memcpy((char*) data + nullIndicatorSize, &maxVal.back(), FLT_SIZE);
+                    maxVal.pop_back();
                     break;
                 case SUM:
-                    memcpy((char*) data + nullIndicatorSize, &sumVal, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &sumVal.back(), FLT_SIZE);
+                    sumVal.pop_back();
                     break;
                 case AVG:
-                    memcpy((char*) data + nullIndicatorSize, &avgVal, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &avgVal.back(), FLT_SIZE);
+                    avgVal.pop_back();
                     break;
                 case COUNT:
-                    memcpy((char*) data + nullIndicatorSize, &count, FLT_SIZE);
+                    memcpy((char*) data + nullIndicatorSize, &count.back(), FLT_SIZE);
+                    count.pop_back();
                     break;
             }
-            free(tupleBuffer);
-            free(targetAttribute);
-            //free(nullIndicator);
-            return 0;
         }
-        else{
-            // TODO
-            return -1;
+        else {
+            numGetNextTuple++;
+            if (isFirstGetNextTuple) {
+                isFirstGetNextTuple = false;
+                void* groupAttributeBuffer = malloc(getMaxTupleLength(attrs));
+                while (aggItr->getNextTuple(tupleBuffer) != RM_EOF) {
+                    RC errCode1 = getTargetAttributeValue(attrs, tupleBuffer, groupAttr.name, groupAttributeBuffer);
+                    RC errCode2 = getTargetAttributeValue(attrs, tupleBuffer, aggAttr.name, aggAttributeBuffer);
+                    if (errCode1 != 0 || errCode2 != 0) {
+                        free(tupleBuffer);
+                        free(groupAttributeBuffer);
+                        free(aggAttributeBuffer);
+                        return -1;
+                    }
+                    float aggAttrVal;
+                    if (aggAttr.type == TypeInt) {
+                        int intAggAttrVal;
+                        memcpy(&intAggAttrVal, aggAttributeBuffer, INT_SIZE);
+                        aggAttrVal = (float) intAggAttrVal;
+                    }
+                    else memcpy(&aggAttrVal, aggAttributeBuffer, FLT_SIZE);
+
+                    if (groupAttr.type == TypeVarChar) {
+                        unsigned varCharLen;
+                        memcpy(&varCharLen, groupAttributeBuffer, VC_LEN_SIZE);
+                        char* varChar = (char*) malloc(varCharLen);
+                        memcpy(varChar, (char*) groupAttributeBuffer + VC_LEN_SIZE, varCharLen);
+                        std::string groupVarChar = std::string(varChar, varCharLen);
+                        if (varCharHashTable.find(groupVarChar) == varCharHashTable.end()) {
+                            varCharHashTable[groupVarChar] = std::vector<float>();
+                        }
+                        varCharHashTable[groupVarChar].push_back(aggAttrVal);
+                        free(varChar);
+                    }
+                    else if (groupAttr.type == TypeInt) {
+                        int groupInt;
+                        memcpy(&groupInt, groupAttributeBuffer, INT_SIZE);
+                        if (intHashTable.find(groupInt) == intHashTable.end()) {
+                            intHashTable[groupInt] = std::vector<float>();
+                        }
+                        intHashTable[groupInt].push_back(aggAttrVal);
+                    }
+                    else {
+                        float groupFlt;
+                        memcpy(&groupFlt, groupAttributeBuffer, FLT_SIZE);
+                        if (realHashTable.find(groupFlt) == realHashTable.end()) {
+                            realHashTable[groupFlt] = std::vector<float>();
+                        }
+                        realHashTable[groupFlt].push_back(aggAttrVal);
+                    }
+                }
+                free(groupAttributeBuffer);
+                if (groupAttr.type == TypeVarChar) {
+                    for (auto pair : varCharHashTable) {
+                        groupCounter++;
+                        varCharGroupVector.push_back(pair.first);
+                        for (float aggAttribute : pair.second) {
+                            minVal.back() = aggAttribute < minVal.back() ? aggAttribute : minVal.back();
+                            maxVal.back() = aggAttribute > maxVal.back() ? aggAttribute : maxVal.back();
+                            sumVal.back() += aggAttribute;
+                            count.back()++;
+                        }
+                        avgVal.back() = sumVal.back() / count.back();
+                        minVal.push_back(std::numeric_limits<float>::max());
+                        maxVal.push_back(std::numeric_limits<float>::min());
+                        sumVal.push_back(0);
+                        count.push_back(0);
+                        avgVal.push_back(0);
+                    }
+                }
+                else if (groupAttr.type == TypeInt) {
+                    for (auto pair : intHashTable) {
+                        groupCounter++;
+                        intGroupVector.push_back(pair.first);
+                        for (float aggAttribute : pair.second) {
+                            minVal.back() = aggAttribute < minVal.back() ? aggAttribute : minVal.back();
+                            maxVal.back() = aggAttribute > maxVal.back() ? aggAttribute : maxVal.back();
+                            sumVal.back() += aggAttribute;
+                            count.back()++;
+                        }
+                        avgVal.back() = sumVal.back() / count.back();
+                        minVal.push_back(std::numeric_limits<float>::max());
+                        maxVal.push_back(std::numeric_limits<float>::min());
+                        sumVal.push_back(0);
+                        count.push_back(0);
+                        avgVal.push_back(0);
+                    }
+                }
+                if (groupAttr.type == TypeReal) {
+                    for (auto pair : realHashTable) {
+                        groupCounter++;
+                        realGroupVector.push_back(pair.first);
+                        for (float aggAttribute : pair.second) {
+                            minVal.back() = aggAttribute < minVal.back() ? aggAttribute : minVal.back();
+                            maxVal.back() = aggAttribute > maxVal.back() ? aggAttribute : maxVal.back();
+                            sumVal.back() += aggAttribute;
+                            count.back()++;
+                        }
+                        avgVal.back() = sumVal.back() / count.back();
+                        minVal.push_back(std::numeric_limits<float>::max());
+                        maxVal.push_back(std::numeric_limits<float>::min());
+                        sumVal.push_back(0);
+                        count.push_back(0);
+                        avgVal.push_back(0);
+                    }
+                }
+            }
+            int dataPtr = nullIndicatorSize;
+            if (numGetNextTuple > groupCounter) return QE_EOF;
+            if (groupAttr.type == TypeVarChar){
+                unsigned varCharLen = varCharGroupVector.back().size();
+                memcpy((char*) data + dataPtr, &varCharLen, VC_LEN_SIZE);
+                memcpy((char*) data + dataPtr + VC_LEN_SIZE, &varCharGroupVector.back(), varCharLen);
+                dataPtr += varCharLen + VC_LEN_SIZE;
+                varCharGroupVector.pop_back();
+            }
+            else if (groupAttr.type == TypeInt){
+                memcpy((char*) data + dataPtr, &intGroupVector.back(), INT_SIZE);
+                dataPtr += INT_SIZE;
+                intGroupVector.pop_back();
+            }
+            else {
+                memcpy((char*) data + dataPtr, &realGroupVector.back(), FLT_SIZE);
+                dataPtr += FLT_SIZE;
+                realGroupVector.pop_back();
+            }
+            switch (op) {
+                case MIN:
+                    minVal.pop_back();
+                    memcpy((char*) data + dataPtr, &minVal.back(), FLT_SIZE);
+                    break;
+                case MAX:
+                    maxVal.pop_back();
+                    memcpy((char*) data + dataPtr, &maxVal.back(), FLT_SIZE);
+                    break;
+                case SUM:
+                    sumVal.pop_back();
+                    memcpy((char*) data + dataPtr, &sumVal.back(), FLT_SIZE);
+                    break;
+                case AVG:
+                    avgVal.pop_back();
+                    memcpy((char*) data + dataPtr, &avgVal.back(), FLT_SIZE);
+                    break;
+                case COUNT:
+                    count.pop_back();
+                    memcpy((char*) data + dataPtr, &count.back(), FLT_SIZE);
+                    break;
+            }
         }
+        free(tupleBuffer);
+        free(aggAttributeBuffer);
+        return 0;
     }
 
     RC Aggregate::getAttributes(std::vector<Attribute> &attrs) const {
@@ -726,7 +882,8 @@ namespace PeterDB {
         }
         Attribute attr = aggAttr;
         attr.type = TypeReal;
-        attr.name = opName + '(' + attr.name + ')' ;
+        attr.name = opName + '(' + attr.name + ')';
+        if (group) attrs.push_back(groupAttr);
         attrs.push_back(attr);
 
         return 0;
