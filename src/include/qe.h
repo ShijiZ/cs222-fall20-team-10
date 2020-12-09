@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <limits>
+#include <unordered_map>
 
 #include "rm.h"
 #include "ix.h"
@@ -244,8 +246,8 @@ namespace PeterDB {
         std::unordered_map<float, std::vector<TupleRef>> realHashTable;
         std::unordered_map<std::string, std::vector<TupleRef>> varCharHashTable;
         RC rightScan;
-        bool vectorIsEmpty;
         bool isRM_EOF;
+        int counter;
 
         RC getNextBlockAndHash();
     };
