@@ -90,12 +90,15 @@ namespace PeterDB {
                              std::vector<Attribute> leftAttrs, std::vector<Attribute> rightAttrs,  void* data){
         unsigned leftNullIndicatorSize = ceil((double) leftAttrs.size()/8);
         char* leftNullIndicator = (char*) malloc(leftNullIndicatorSize);
-        memcpy(leftNullIndicator,(char* )leftTuple, leftNullIndicatorSize);
+        memcpy(leftNullIndicator,(char*) leftTuple, leftNullIndicatorSize);
+
         unsigned rightNullIndicatorSize = ceil((double) rightAttrs.size()/8);
         char* rightNullIndicator = (char*) malloc(rightNullIndicatorSize);
-        memcpy(rightNullIndicator,(char* )rightTuple, rightNullIndicatorSize);
+        memcpy(rightNullIndicator,(char*) rightTuple, rightNullIndicatorSize);
+
         unsigned nullIndicatorSize = ceil((double) (leftAttrs.size() + rightAttrs.size())/8);
         char* nullIndicator = (char*) malloc(nullIndicatorSize);
+        memset(nullIndicator, 0, nullIndicatorSize);
         int byteIdx;
         int bitIdx;
         for (int i = 0; i < nullIndicatorSize; i++){
