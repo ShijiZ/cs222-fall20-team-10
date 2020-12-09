@@ -1,4 +1,3 @@
-#include <unordered_map>
 #include "src/include/qe.h"
 
 namespace PeterDB {
@@ -378,8 +377,8 @@ namespace PeterDB {
         this->block = malloc(numPages * PAGE_SIZE);
         this->leftTuple = malloc(getMaxTupleLength(this->leftAttrs));
         this->rightTuple = malloc(getMaxTupleLength(this->rightAttrs));
-        this->vectorIsEmpty = true;
         this->isRM_EOF = false;
+        this->counter = 0;
         for (Attribute leftAttr : this->leftAttrs){
             if (this->condition.lhsAttr == leftAttr.name){
                 this->keyType = leftAttr.type;
@@ -401,10 +400,7 @@ namespace PeterDB {
             isFirstGetNextTuple = false;
             RC errCode = getNextBlockAndHash();
             if (errCode != 0) return QE_EOF;
-        }
-        if (vectorIsEmpty) {
             rightScan = rightIn->getNextTuple(rightTuple);
-            vectorIsEmpty = false;
         }
 
         TupleRef leftTupleRef;
@@ -412,7 +408,7 @@ namespace PeterDB {
             if (rightScan == RM_EOF){
                 rightIn->setIterator();
                 rightScan = rightIn->getNextTuple(rightTuple);
-                vectorIsEmpty = false;
+                counter = 0;
             }
             parseTuple(rightTuple, keyPtr, rightTupleLength, rightAttrs, condition.rhsAttr);
             if (keyType == TypeVarChar){
@@ -422,45 +418,43 @@ namespace PeterDB {
                 memcpy(keyVarChar, (char*) rightTuple + keyPtr + VC_LEN_SIZE, keyVarCharLen);
                 std::string varCharRightKey = std::string(keyVarChar, keyVarCharLen);
                 free(keyVarChar);
-                if (varCharHashTable.find(varCharRightKey) != varCharHashTable.end() && !varCharHashTable[varCharRightKey].empty()){
-                    leftTupleRef = varCharHashTable[varCharRightKey].back();
-                    varCharHashTable[varCharRightKey].pop_back();
+                if (varCharHashTable.find(varCharRightKey) != varCharHashTable.end() && counter < varCharHashTable[varCharRightKey].size()){
+                    leftTupleRef = varCharHashTable[varCharRightKey][counter];
+                    counter ++;
                     memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
-                    if (varCharHashTable[varCharRightKey].empty())  vectorIsEmpty = true;
                 }
                 else {
                     rightScan = rightIn->getNextTuple(rightTuple);
-                    vectorIsEmpty = false;
+                    counter = 0;
                     continue;
                 }
             }
             else if (keyType == TypeInt) {
                 int intRightKey;
                 memcpy(&intRightKey, (char*) rightTuple + keyPtr, INT_SIZE);
-                if (intHashTable.find(intRightKey) != intHashTable.end() && !intHashTable[intRightKey].empty()){
-                    leftTupleRef = intHashTable[intRightKey].back();
-                    intHashTable[intRightKey].pop_back();
-                    memcpy(leftTuple, (char* ) block + leftTupleRef.offset, leftTupleRef.length);
-                    if (intHashTable[intRightKey].empty())  vectorIsEmpty = true;
+                if (intHashTable.find(intRightKey) != intHashTable.end() && counter < intHashTable[intRightKey].size()){
+                    leftTupleRef = intHashTable[intRightKey][counter];
+                    counter ++;
+                   // std::cout<<counter <<" "<< intHashTable[intRightKey].size()<<std::endl;
+                    memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
                 }
-                else {
-                    rightScan = rightIn->getNextTuple(rightTuple);
-                    vectorIsEmpty = false;
-                    continue;
-                }
+               else {
+                   rightScan = rightIn->getNextTuple(rightTuple);
+                   counter = 0;
+                   continue;
+               }
             }
             else  {
                 float realRightKey;
                 memcpy(&realRightKey, (char*) rightTuple + keyPtr, FLT_SIZE);
-                if (realHashTable.find(realRightKey) != realHashTable.end() && !realHashTable[realRightKey].empty()){
-                    leftTupleRef = realHashTable[realRightKey].back();
-                    realHashTable[realRightKey].pop_back();
+                if (realHashTable.find(realRightKey) != realHashTable.end() && counter < intHashTable[realRightKey].size()){
+                    leftTupleRef = realHashTable[realRightKey][counter];
+                    counter ++;
                     memcpy(leftTuple, (char* ) block + leftTupleRef.offset, leftTupleRef.length);
-                    if (realHashTable[realRightKey].empty())  vectorIsEmpty = true;
                 }
                 else {
                     rightScan = rightIn->getNextTuple(rightTuple);
-                    vectorIsEmpty = false;
+                    counter = 0;
                     continue;
                 }
             }
@@ -485,6 +479,9 @@ namespace PeterDB {
         short tupleLength;
         int keyPtr;
         int maxTupleLength = getMaxTupleLength(leftAttrs);
+        intHashTable.clear();
+        realHashTable.clear();
+        varCharHashTable.clear();
         while (leftIn->getNextTuple((char*) block + tupleOffset) != RM_EOF){
             parseTuple((char*) block + tupleOffset, keyPtr, tupleLength, leftAttrs, condition.lhsAttr);
             TupleRef tupleRef;
