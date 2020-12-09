@@ -4,7 +4,7 @@ namespace PeterDB {
     RC getTargetAttributeValue(std::vector<Attribute> attrs, void *tupleBuffer, std::string lhsAttr, void *targetAttribute){
         unsigned numAttrs = attrs.size();
         unsigned nullIndicatorSize = ceil((double) numAttrs/8);
-        char* nullIndicatorBuffer = new char[nullIndicatorSize];
+        char* nullIndicatorBuffer = (char*) malloc(nullIndicatorSize);
         memcpy(nullIndicatorBuffer, tupleBuffer, nullIndicatorSize);
         unsigned attrCounter;
         unsigned attrOffset = nullIndicatorSize;
@@ -71,7 +71,7 @@ namespace PeterDB {
             else{
                 tupleLength += INT_OR_FLT_SIZE;
             }
-            counter ++;
+            counter++;
         }
         free(nullIndicator);
     }
@@ -300,12 +300,14 @@ namespace PeterDB {
     RC Project::generateProjectAttrValues(void* data, void* dataBuffer){
         unsigned numAttrs = attrs.size();
         unsigned nullIndicatorSize = ceil((double) numAttrs/8);
-        char* nullIndicatorBuffer = new char[nullIndicatorSize];
-        memcpy(nullIndicatorBuffer, data, nullIndicatorSize);
+        char* nullIndicatorBuffer = (char*) malloc(nullIndicatorSize);
+        memcpy(nullIndicatorBuffer, dataBuffer, nullIndicatorSize);
+
         unsigned numProjectAttrs = attrNames.size();
         unsigned projectNullIndicatorSize = ceil((double) numProjectAttrs/8);
-        char* projectNullIndicatorBuffer = new char[projectNullIndicatorSize];
+        char* projectNullIndicatorBuffer = (char*) malloc(projectNullIndicatorSize);
         memset(projectNullIndicatorBuffer,0, projectNullIndicatorSize);
+
         int dataPtr = projectNullIndicatorSize;
         int dataBufferPtr ;
         int projectAttrCounter = 0;
@@ -315,37 +317,36 @@ namespace PeterDB {
         int projectByteIdx;
         int projectBitIdx;
         bool attrIsNull;
-        for (std::string attrName : attrNames){
+        for (std::string attrName : attrNames) {
             attrCounter = 0;
             dataBufferPtr = nullIndicatorSize;
-            for (Attribute attr : attrs){
-                if (attrName == attr.name){
+            for (Attribute attr : attrs) {
+                if (attrName == attr.name) {
                     byteIdx = attrCounter / 8;
                     bitIdx = attrCounter % 8;
                     attrIsNull = nullIndicatorBuffer[byteIdx] & (int) 1 << (int) (7 - bitIdx);
-                    if (attrIsNull){
+                    if (attrIsNull) {
                         projectByteIdx = projectAttrCounter / 8;
-                        projectBitIdx = attrCounter % 8;
+                        projectBitIdx = projectAttrCounter % 8;
                         projectNullIndicatorBuffer[projectByteIdx] += pow(2, 7-projectBitIdx);
-                        break;
                     }
                     else{
-                        if (attr.type == TypeVarChar){
+                        if (attr.type == TypeVarChar) {
                             unsigned varCharLen;
                             memcpy(&varCharLen, (char*) dataBuffer + dataBufferPtr, VC_LEN_SIZE);
                             memcpy((char*) data + dataPtr, &varCharLen, VC_LEN_SIZE);
                             memcpy((char*) data + dataPtr + VC_LEN_SIZE, (char*) dataBuffer + dataBufferPtr + VC_LEN_SIZE, varCharLen);
                             dataPtr += varCharLen + VC_LEN_SIZE;
                         }
-                        else{
+                        else {
                             memcpy((char*) data + dataPtr, (char*) dataBuffer + dataBufferPtr, INT_OR_FLT_SIZE);
                             dataPtr += INT_OR_FLT_SIZE;
                         }
-                        break;
                     }
+                    break;
                 }
                 else{
-                    if (attr.type == TypeVarChar){
+                    if (attr.type == TypeVarChar) {
                         unsigned varCharLen;
                         memcpy(&varCharLen, (char*) dataBuffer + dataBufferPtr, VC_LEN_SIZE);
                         dataBufferPtr += varCharLen + VC_LEN_SIZE;
@@ -354,14 +355,14 @@ namespace PeterDB {
                         dataBufferPtr += INT_OR_FLT_SIZE;
                     }
                 }
-                attrCounter ++;
+                attrCounter++;
             }
-            if (attrCounter == attrs.size()){
+            if (attrCounter == attrs.size()) {
                 free(nullIndicatorBuffer);
                 free(projectNullIndicatorBuffer);
                 return -1;  // project attribute does not match any of the attributes
             }
-            projectAttrCounter ++;
+            projectAttrCounter++;
         }
         memcpy(data, projectNullIndicatorBuffer, projectNullIndicatorSize);
         free(nullIndicatorBuffer);
@@ -423,7 +424,7 @@ namespace PeterDB {
                 free(keyVarChar);
                 if (varCharHashTable.find(varCharRightKey) != varCharHashTable.end() && counter < varCharHashTable[varCharRightKey].size()){
                     leftTupleRef = varCharHashTable[varCharRightKey][counter];
-                    counter ++;
+                    counter++;
                     memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
                 }
                 else {
@@ -437,7 +438,7 @@ namespace PeterDB {
                 memcpy(&intRightKey, (char*) rightTuple + keyPtr, INT_SIZE);
                 if (intHashTable.find(intRightKey) != intHashTable.end() && counter < intHashTable[intRightKey].size()){
                     leftTupleRef = intHashTable[intRightKey][counter];
-                    counter ++;
+                    counter++;
                    // std::cout<<counter <<" "<< intHashTable[intRightKey].size()<<std::endl;
                     memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
                 }
@@ -447,13 +448,13 @@ namespace PeterDB {
                    continue;
                }
             }
-            else  {
+            else {
                 float realRightKey;
                 memcpy(&realRightKey, (char*) rightTuple + keyPtr, FLT_SIZE);
                 if (realHashTable.find(realRightKey) != realHashTable.end() && counter < intHashTable[realRightKey].size()){
                     leftTupleRef = realHashTable[realRightKey][counter];
-                    counter ++;
-                    memcpy(leftTuple, (char* ) block + leftTupleRef.offset, leftTupleRef.length);
+                    counter++;
+                    memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
                 }
                 else {
                     rightScan = rightIn->getNextTuple(rightTuple);
