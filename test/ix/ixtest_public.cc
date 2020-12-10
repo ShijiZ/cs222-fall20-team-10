@@ -195,6 +195,10 @@ namespace PeterDBTesting {
 
         destroyFile = false; // prevent double destroy in TearDown()
 
+        ASSERT_EQ(ix.closeFile(ixFileHandle), success) << "indexManager::closeFile() should succeed.";
+
+        closeFile = false; // prevent double close in TearDown()
+
         // destroy index file
         ASSERT_EQ(ix.destroyFile(indexFileName), success) << "indexManager::destroyFile() should succeed.";
         EXPECT_FALSE(fileExists(indexFileName)) << "the index file " << indexFileName << " should not exist now.";
@@ -377,8 +381,8 @@ namespace PeterDBTesting {
 
         unsigned key1 = 400;
         unsigned key2 = 100;
-        unsigned numOfEntries = 5000;
-        unsigned numOfMoreEntries = 10000;
+        unsigned numOfEntries = 250;
+        unsigned numOfMoreEntries = 400;
         unsigned key, seed = 10090, salt = 5617;
 
         // Insert entries
