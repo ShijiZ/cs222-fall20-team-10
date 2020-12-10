@@ -35,19 +35,19 @@ namespace PeterDB {
         Value rhsValue;             // right-hand side value if bRhsIsAttr = FALSE
     } Condition;
 
-    typedef struct TupleRef {
-        int offset;
+    typedef struct TupleInfo {
+        int offsetOnBlock;
         short length;
-    } TupleRef;
-
-    RC getTargetAttributeValue(std::vector<Attribute> attrs, void *tupleBuffer, std::string lhsAttr, void *targetAttribute);
-
-    void parseTuple(void* tupleBuffer, int &keyPtr, short &tupleLength, std::vector<Attribute> attrs, std::string conditionAttr);
+    } TupleInfo;
 
     int getMaxTupleLength(std::vector<Attribute> attrs);
 
+    RC getTargetAttrValue(std::vector<Attribute> attrs, void* tupleBuffer, std::string targetAttrName, void* targetAttr);
+
+    void parseTuple(void* tupleBuffer, std::vector<Attribute> attrs, std::string conditionAttr, int &keyOffset, short &tupleLength);
+
     void generateJoinedTuple(void* leftTuple, void* rightTuple, short leftTupleLength, short rightTupleLength,
-            std::vector<Attribute> leftAttrs, std::vector<Attribute> rightAttrs,  void* data);
+            std::vector<Attribute> leftAttrs, std::vector<Attribute> rightAttrs, void* data);
 
     class Iterator {
         // All the relational operators and access methods are iterators.
@@ -107,6 +107,7 @@ namespace PeterDB {
             for (Attribute &attribute : attributes) {
                 attribute.name = tableName + "." + attribute.name;
             }
+            return 0;
         };
 
         ~TableScan() override {
@@ -188,7 +189,7 @@ namespace PeterDB {
     private:
         std::vector<Attribute> attrs;
         Condition condition;
-        Iterator *filterItr;
+        Iterator* filterItr;
 
         bool checkSatisfied(void* targetAttrValue);
     };
@@ -208,9 +209,9 @@ namespace PeterDB {
     private:
         std::vector<std::string> attrNames;
         std::vector<Attribute> attrs;
-        Iterator *projectItr;
-        //std::vector<int> projectAttrIdxs;
-        RC generateProjectAttrValues(void* data, void* databuffer);
+        Iterator* projectItr;
+
+        RC generateProjectTuple(void* data, void* oldData);
     };
 
     class BNLJoin : public Iterator {
@@ -231,25 +232,28 @@ namespace PeterDB {
         RC getAttributes(std::vector<Attribute> &attrs) const override;
 
     private:
-        Iterator *leftIn;
-        TableScan *rightIn;
+        Iterator* leftIn;
+        TableScan* rightIn;
         std::vector<Attribute> leftAttrs;
         std::vector<Attribute> rightAttrs;
-        Condition condition;
-        unsigned numPages;
         void* leftTuple;
         void* rightTuple;
-        AttrType keyType;
-        void* block;
-        bool isFirstGetNextTuple;
-        std::unordered_map<int, std::vector<TupleRef>> intHashTable;
-        std::unordered_map<float, std::vector<TupleRef>> realHashTable;
-        std::unordered_map<std::string, std::vector<TupleRef>> varCharHashTable;
-        RC rightScan;
-        bool isRM_EOF;
-        int counter;
 
-        RC getNextBlockAndHash();
+        Condition condition;
+        AttrType keyType;
+        bool isFirstGetNextTuple;
+        unsigned numPages;
+        void* blockBuffer;
+
+        std::unordered_map<int, std::vector<TupleInfo>> intHashTable;
+        std::unordered_map<float, std::vector<TupleInfo>> realHashTable;
+        std::unordered_map<std::string, std::vector<TupleInfo>> varCharHashTable;
+
+        bool leftScanEnded;
+        RC rightScanEnded;
+        int tupleInfoCounter;
+
+        RC generateNextBlockAndHash();
     };
 
     class INLJoin : public Iterator {
@@ -268,14 +272,15 @@ namespace PeterDB {
         RC getAttributes(std::vector<Attribute> &attrs) const override;
 
     private:
-        Iterator *leftIn;
-        IndexScan *rightIn;
+        Iterator* leftIn;
+        IndexScan* rightIn;
         std::vector<Attribute> leftAttrs;
         std::vector<Attribute> rightAttrs;
-        Condition condition;
-        void* rightTuple;
         void* leftTuple;
-        AttrType  keyType;
+        void* rightTuple;
+
+        Condition condition;
+        AttrType keyType;
         bool isFirstGetNextTuple;
     };
 
@@ -325,27 +330,30 @@ namespace PeterDB {
         RC getAttributes(std::vector<Attribute> &attrs) const override;
 
     private:
-        Iterator *aggItr;
+        Iterator* aggItr;
         Attribute aggAttr;
         AggregateOp op;
         std::vector<Attribute> attrs;
         bool isFirstGetNextTuple;
         Attribute groupAttr;
         bool group;
+        std::unordered_map<std::string, std::vector<float>> varCharHashTable;
         std::unordered_map<int, std::vector<float>> intHashTable;
         std::unordered_map<float, std::vector<float>> realHashTable;
-        std::unordered_map<std::string, std::vector<float>> varCharHashTable;
+
         std::vector<float> minVal;
         std::vector<float> maxVal;
         std::vector<float> sumVal;
         std::vector<float> avgVal;
         std::vector<float> count;
+        std::vector<std::string> varCharGroupVector;
         std::vector<int> intGroupVector;
         std::vector<float> realGroupVector;
-        std::vector<std::string>varCharGroupVector;
+
         int groupCounter;
         int numGetNextTuple;
 
+        void initRunningInfoVectors();
     };
 } // namespace PeterDB
 

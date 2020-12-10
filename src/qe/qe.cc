@@ -1,80 +1,6 @@
 #include "src/include/qe.h"
 
 namespace PeterDB {
-    RC getTargetAttributeValue(std::vector<Attribute> attrs, void *tupleBuffer, std::string lhsAttr, void *targetAttribute){
-        unsigned numAttrs = attrs.size();
-        unsigned nullIndicatorSize = ceil((double) numAttrs/8);
-        char* nullIndicatorBuffer = (char*) malloc(nullIndicatorSize);
-        memcpy(nullIndicatorBuffer, tupleBuffer, nullIndicatorSize);
-        unsigned attrCounter;
-        unsigned attrOffset = nullIndicatorSize;
-        for (attrCounter = 0; attrCounter < numAttrs; attrCounter++){
-            if (attrs[attrCounter].name == lhsAttr){
-                int byteIdx = attrCounter / 8;
-                int bitIdx = attrCounter % 8;
-                bool attrIsNull = nullIndicatorBuffer[byteIdx] & (int) 1 << (int) (7 - bitIdx);
-                if (attrIsNull) {
-                    free(nullIndicatorBuffer);
-                    return -2;  // target attribute is null
-                }
-                else{
-                    if (attrs[attrCounter].type == TypeVarChar){
-                        unsigned varCharLen;
-                        memcpy(&varCharLen, (char*) tupleBuffer + attrOffset, VC_LEN_SIZE);
-                        memcpy(targetAttribute, &varCharLen, VC_LEN_SIZE);
-                        memcpy((char*) targetAttribute + VC_LEN_SIZE, (char*) tupleBuffer + attrOffset + VC_LEN_SIZE, varCharLen);
-                    }
-                    else{
-                        memcpy(targetAttribute, (char*) tupleBuffer + attrOffset, INT_OR_FLT_SIZE);
-                    }
-                }
-                free(nullIndicatorBuffer);
-                return 0;
-            }
-            else{
-                if (attrs[attrCounter].type == TypeVarChar){
-                    unsigned varCharLen;
-                    memcpy(&varCharLen, (char*) tupleBuffer + attrOffset, VC_LEN_SIZE);
-                    attrOffset += varCharLen + VC_LEN_SIZE;
-                }
-                else{
-                    attrOffset += INT_OR_FLT_SIZE;
-                }
-            }
-        }
-        free(nullIndicatorBuffer);
-        return -1; // lhsAttrName does not match any of the attribute names
-    }
-
-    void parseTuple(void *tupleBuffer, int &keyPtr, short &tupleLength, std::vector<Attribute> attrs, std::string conditionAttr) {
-        unsigned numAttrs = attrs.size();
-        unsigned nullIndicatorSize = ceil((double) numAttrs/8);
-        char* nullIndicator = (char*) malloc(nullIndicatorSize);
-        memcpy(nullIndicator, tupleBuffer, nullIndicatorSize);
-        tupleLength = nullIndicatorSize;
-        int counter = 0;
-        int byteIdx;
-        int bitIdx;
-        for (Attribute attr : attrs){
-            byteIdx = counter / 8;
-            bitIdx = counter % 8;
-            bool attrIsNull = nullIndicator[byteIdx] & (int) 1 << (int) (7 - bitIdx);
-            if (attrIsNull) continue;
-            if (attr.name == conditionAttr){
-                keyPtr = tupleLength;
-            }
-            if (attr.type == TypeVarChar){
-                unsigned varCharLen;
-                memcpy(&varCharLen, (char*) tupleBuffer + tupleLength, VC_LEN_SIZE);
-                tupleLength += varCharLen + VC_LEN_SIZE;
-            }
-            else{
-                tupleLength += INT_OR_FLT_SIZE;
-            }
-            counter++;
-        }
-        free(nullIndicator);
-    }
 
     int getMaxTupleLength(std::vector<Attribute> attrs){
         unsigned nullIndicatorSize = ceil((double) attrs.size()/8);
@@ -86,28 +12,115 @@ namespace PeterDB {
         return maxTupleLength;
     }
 
+    RC getTargetAttrValue(std::vector<Attribute> attrs, void* tupleBuffer, std::string targetAttrName, void* targetAttrValue){
+        unsigned numAttrs = attrs.size();
+        unsigned nullIndicatorSize = ceil((double) numAttrs/8);
+        char* nullIndicator = (char*) malloc(nullIndicatorSize);
+        memcpy(nullIndicator, tupleBuffer, nullIndicatorSize);
+
+        unsigned attrOffset = nullIndicatorSize;
+        for (unsigned attrIdx = 0; attrIdx < numAttrs; attrIdx++){
+            // target attribute found
+            if (attrs[attrIdx].name == targetAttrName){
+                int byteIdx = attrIdx / 8;
+                int bitIdx = attrIdx % 8;
+                bool attrIsNull = nullIndicator[byteIdx] & (int) 1 << (int) (7 - bitIdx);
+                // target attribute is null
+                if (attrIsNull) {
+                    free(nullIndicator);
+                    return -2;
+                }
+                // target attribute is not null, prepare targetAttrValue
+                else{
+                    if (attrs[attrIdx].type == TypeVarChar){
+                        unsigned varCharLen;
+                        memcpy(&varCharLen, (char*) tupleBuffer + attrOffset, VC_LEN_SIZE);
+                        memcpy(targetAttrValue, &varCharLen, VC_LEN_SIZE);
+                        memcpy((char*) targetAttrValue + VC_LEN_SIZE, (char*) tupleBuffer + attrOffset + VC_LEN_SIZE, varCharLen);
+                    }
+                    else{
+                        memcpy(targetAttrValue, (char*) tupleBuffer + attrOffset, INT_OR_FLT_SIZE);
+                    }
+                }
+                free(nullIndicator);
+                return 0;
+            }
+            // target attribute has not been found, move attrOffset
+            else{
+                if (attrs[attrIdx].type == TypeVarChar){
+                    unsigned varCharLen;
+                    memcpy(&varCharLen, (char*) tupleBuffer + attrOffset, VC_LEN_SIZE);
+                    attrOffset += varCharLen + VC_LEN_SIZE;
+                }
+                else{
+                    attrOffset += INT_OR_FLT_SIZE;
+                }
+            }
+        }
+        free(nullIndicator);
+        return -1; // targetAttrName does not match any of the attribute names
+    }
+
+    void parseTuple(void* tupleBuffer, std::vector<Attribute> attrs, std::string conditionAttr, int &keyOffset, short &tupleLength) {
+        // read nullIndicator from tupleBuffer
+        unsigned numAttrs = attrs.size();
+        unsigned nullIndicatorSize = ceil((double) numAttrs/8);
+        char* nullIndicator = (char*) malloc(nullIndicatorSize);
+        memcpy(nullIndicator, tupleBuffer, nullIndicatorSize);
+
+        tupleLength = nullIndicatorSize;
+        int attrCounter = 0;
+        for (Attribute attr : attrs){
+            int byteIdx = attrCounter / 8;
+            int bitIdx = attrCounter % 8;
+            bool attrIsNull = nullIndicator[byteIdx] & (int) 1 << (int) (7 - bitIdx);
+            if (attrIsNull) continue;
+
+            // condition attribute found, set keyOffset
+            if (attr.name == conditionAttr){
+                keyOffset = tupleLength;
+            }
+
+            // accumulate tupleLength
+            if (attr.type == TypeVarChar){
+                unsigned varCharLen;
+                memcpy(&varCharLen, (char*) tupleBuffer + tupleLength, VC_LEN_SIZE);
+                tupleLength += varCharLen + VC_LEN_SIZE;
+            }
+            else{
+                tupleLength += INT_OR_FLT_SIZE;
+            }
+            attrCounter++;
+        }
+        free(nullIndicator);
+    }
+
     void generateJoinedTuple(void* leftTuple, void* rightTuple, short leftTupleLength, short rightTupleLength,
-                             std::vector<Attribute> leftAttrs, std::vector<Attribute> rightAttrs,  void* data){
+                             std::vector<Attribute> leftAttrs, std::vector<Attribute> rightAttrs, void* data){
+        // get leftNullIndicator from left tuple
         unsigned leftNullIndicatorSize = ceil((double) leftAttrs.size()/8);
         char* leftNullIndicator = (char*) malloc(leftNullIndicatorSize);
         memcpy(leftNullIndicator,(char*) leftTuple, leftNullIndicatorSize);
 
+        // get rightNullIndicator from right tuple
         unsigned rightNullIndicatorSize = ceil((double) rightAttrs.size()/8);
         char* rightNullIndicator = (char*) malloc(rightNullIndicatorSize);
         memcpy(rightNullIndicator,(char*) rightTuple, rightNullIndicatorSize);
 
+        // initialize nullIndicator of the output data
         unsigned nullIndicatorSize = ceil((double) (leftAttrs.size() + rightAttrs.size())/8);
         char* nullIndicator = (char*) malloc(nullIndicatorSize);
         memset(nullIndicator, 0, nullIndicatorSize);
-        int byteIdx;
-        int bitIdx;
+
         for (int i = 0; i < nullIndicatorSize; i++){
-            byteIdx = i / 8;
-            bitIdx = i % 8;
+            int byteIdx = i / 8;
+            int bitIdx = i % 8;
+            // generate left part nullIndicator based on leftNullIndicator
             if (i < leftNullIndicatorSize){
                 bool attrIsNull = leftNullIndicator[byteIdx] & (int) 1 << (int) (7 - bitIdx);
                 if (attrIsNull) nullIndicator[byteIdx] += pow(2, 7-bitIdx);
             }
+            // generate right part nullIndicator based on rightNullIndicator
             else {
                 int rightIdx = i - leftNullIndicatorSize;
                 int rightByteIdx = rightIdx / 8;
@@ -116,6 +129,8 @@ namespace PeterDB {
                 if (attrIsNull) nullIndicator[byteIdx] += pow(2, 7-bitIdx);
             }
         }
+
+        // copy nullIndicator, left tuple and right tuple (both without nullIndicator) into output data
         memcpy(data, nullIndicator, nullIndicatorSize);
         memcpy((char*) data + nullIndicatorSize,
                (char*) leftTuple + leftNullIndicatorSize,
@@ -141,12 +156,13 @@ namespace PeterDB {
 
     RC Filter::getNextTuple(void *data) {
         void* targetAttrValue = malloc(getMaxTupleLength(attrs));
-        while (filterItr->getNextTuple(data) != RM_EOF){
-            RC errCode = getTargetAttributeValue(attrs, data, condition.lhsAttr, targetAttrValue);
+        while (filterItr->getNextTuple(data) != QE_EOF){
+            RC errCode = getTargetAttrValue(attrs, data, condition.lhsAttr, targetAttrValue);
             if (errCode == -1){
                 free(targetAttrValue);
                 return -1;
             }
+            // target attribute is null
             else if (errCode == -2) continue;
             else {
                 bool satisfied = checkSatisfied(targetAttrValue);
@@ -157,7 +173,7 @@ namespace PeterDB {
             }
         }
         free(targetAttrValue);
-        return RM_EOF;
+        return QE_EOF;
     }
 
     RC Filter::getAttributes(std::vector<Attribute> &attrs) const {
@@ -175,84 +191,84 @@ namespace PeterDB {
             char* targetVarChar = (char*) malloc(targetVarCharLen);
             memcpy(targetVarChar, (char*) targetAttrValue + VC_LEN_SIZE, targetVarCharLen);
 
-            unsigned valueVarCharLen;
-            memcpy(&valueVarCharLen, (char*) condition.rhsValue.data, VC_LEN_SIZE);
-            char* valueVarChar = (char*) malloc(valueVarCharLen);
-            memcpy(valueVarChar, (char*) condition.rhsValue.data + VC_LEN_SIZE, valueVarCharLen);
+            unsigned rhsValueVarCharLen;
+            memcpy(&rhsValueVarCharLen, (char*) condition.rhsValue.data, VC_LEN_SIZE);
+            char* rhsValueVarChar = (char*) malloc(rhsValueVarCharLen);
+            memcpy(rhsValueVarChar, (char*) condition.rhsValue.data + VC_LEN_SIZE, rhsValueVarCharLen);
             switch(condition.op) {
                 case EQ_OP:
-                    satisfied = std::string(valueVarChar, valueVarCharLen) == std::string(targetVarChar, targetVarCharLen);
+                    satisfied = std::string(rhsValueVarChar, rhsValueVarCharLen) == std::string(targetVarChar, targetVarCharLen);
                     break;
                 case LT_OP:
-                    satisfied = std::string(valueVarChar, valueVarCharLen) > std::string(targetVarChar, targetVarCharLen);
+                    satisfied = std::string(rhsValueVarChar, rhsValueVarCharLen) > std::string(targetVarChar, targetVarCharLen);
                     break;
                 case LE_OP:
-                    satisfied = std::string(valueVarChar, valueVarCharLen) >= std::string(targetVarChar, targetVarCharLen);
+                    satisfied = std::string(rhsValueVarChar, rhsValueVarCharLen) >= std::string(targetVarChar, targetVarCharLen);
                     break;
                 case GT_OP:
-                    satisfied = std::string(valueVarChar, valueVarCharLen) < std::string(targetVarChar, targetVarCharLen);
+                    satisfied = std::string(rhsValueVarChar, rhsValueVarCharLen) < std::string(targetVarChar, targetVarCharLen);
                     break;
                 case GE_OP:
-                    satisfied = std::string(valueVarChar, valueVarCharLen) <= std::string(targetVarChar, targetVarCharLen);
+                    satisfied = std::string(rhsValueVarChar, rhsValueVarCharLen) <= std::string(targetVarChar, targetVarCharLen);
                     break;
                 case NE_OP:
-                    satisfied = std::string(valueVarChar, valueVarCharLen) != std::string(targetVarChar, targetVarCharLen);
+                    satisfied = std::string(rhsValueVarChar, rhsValueVarCharLen) != std::string(targetVarChar, targetVarCharLen);
                     break;
             }
             free(targetVarChar);
-            free(valueVarChar);
+            free(rhsValueVarChar);
         }
-            // Attribute is of type int
+        // Attribute is of type int
         else if (condition.rhsValue.type == TypeInt) {
-            int check;
-            memcpy(&check, (char*) targetAttrValue, INT_SIZE);
-            int data;
-            memcpy(&data, (char*) condition.rhsValue.data, INT_SIZE);
+            int targetInt;
+            memcpy(&targetInt, (char*) targetAttrValue, INT_SIZE);
+            int rhsInt;
+            memcpy(&rhsInt, (char*) condition.rhsValue.data, INT_SIZE);
             switch(condition.op) {
                 case EQ_OP:
-                    satisfied = data == check;
+                    satisfied = rhsInt == targetInt;
                     break;
                 case LT_OP:
-                    satisfied = data > check;
+                    satisfied = rhsInt > targetInt;
                     break;
                 case LE_OP:
-                    satisfied = data >= check;
+                    satisfied = rhsInt >= targetInt;
                     break;
                 case GT_OP:
-                    satisfied = data < check;
+                    satisfied = rhsInt < targetInt;
                     break;
                 case GE_OP:
-                    satisfied = data <= check;
+                    satisfied = rhsInt <= targetInt;
                     break;
                 case NE_OP:
-                    satisfied = data != check;
+                    satisfied = rhsInt != targetInt;
                     break;
             }
         }
-            // Attribute is of type real
+        // Attribute is of type real
         else {
-            float check;
-            memcpy(&check, (char*)targetAttrValue, FLT_SIZE);
-            float data;
-            memcpy(&data, (char*)condition.rhsValue.data, FLT_SIZE);
+            float targetFlt;
+            memcpy(&targetFlt, (char*)targetAttrValue, FLT_SIZE);
+            float rhsFlt;
+            memcpy(&rhsFlt, (char*)condition.rhsValue.data, FLT_SIZE);
             switch(condition.op) {
                 case EQ_OP:
-                    satisfied = data == check;
+                    satisfied = rhsFlt == targetFlt;
                     break;
                 case LT_OP:
-                    satisfied = data > check;
+                    satisfied = rhsFlt > targetFlt;
                     break;
                 case LE_OP:
-                    satisfied = data >= check;
+                    satisfied = rhsFlt >= targetFlt;
                     break;
                 case GT_OP:
-                    satisfied = data < check;
+                    satisfied = rhsFlt < targetFlt;
                     break;
                 case GE_OP:
-                    satisfied = data <= check;
+                    satisfied = rhsFlt <= targetFlt;
                     break;
                 case NE_OP:
-                    satisfied = data != check;
+                    satisfied = rhsFlt != targetFlt;
                     break;
             }
         }
@@ -270,17 +286,17 @@ namespace PeterDB {
     }
 
     RC Project::getNextTuple(void *data) {
-        void* dataBuffer = malloc(getMaxTupleLength(attrs));
-        while(projectItr->getNextTuple(dataBuffer) != RM_EOF){
-            RC errCode = generateProjectAttrValues(data, dataBuffer);
+        void* dataToBeProjected = malloc(getMaxTupleLength(attrs));
+        while(projectItr->getNextTuple(dataToBeProjected) != RM_EOF){
+            RC errCode = generateProjectTuple(data, dataToBeProjected);
             if (errCode != 0){
-                free(dataBuffer);
+                free(dataToBeProjected);
                 return errCode;
             }
-            free(dataBuffer);
+            free(dataToBeProjected);
             return 0;
         }
-        free(dataBuffer);
+        free(dataToBeProjected);
         return RM_EOF;
     }
 
@@ -297,92 +313,97 @@ namespace PeterDB {
         return 0;
     }
 
-    RC Project::generateProjectAttrValues(void* data, void* dataBuffer){
+    RC Project::generateProjectTuple(void* data, void* oldData){
+        // prepare nullIndicator of dataToBeProjected
         unsigned numAttrs = attrs.size();
-        unsigned nullIndicatorSize = ceil((double) numAttrs/8);
-        char* nullIndicatorBuffer = (char*) malloc(nullIndicatorSize);
-        memcpy(nullIndicatorBuffer, dataBuffer, nullIndicatorSize);
+        unsigned oldNullIndicatorSize = ceil((double) numAttrs/8);
+        char* oldNullIndicator = (char*) malloc(oldNullIndicatorSize);
+        memcpy(oldNullIndicator, oldData, oldNullIndicatorSize);
 
+        // initialize nullIndicator of projected data
         unsigned numProjectAttrs = attrNames.size();
         unsigned projectNullIndicatorSize = ceil((double) numProjectAttrs/8);
-        char* projectNullIndicatorBuffer = (char*) malloc(projectNullIndicatorSize);
-        memset(projectNullIndicatorBuffer,0, projectNullIndicatorSize);
+        char* projectNullIndicator = (char*) malloc(projectNullIndicatorSize);
+        memset(projectNullIndicator,0, projectNullIndicatorSize);
 
+        // prepare projected data
         int dataPtr = projectNullIndicatorSize;
-        int dataBufferPtr ;
         int projectAttrCounter = 0;
-        int attrCounter;
-        int byteIdx;
-        int bitIdx;
-        int projectByteIdx;
-        int projectBitIdx;
-        bool attrIsNull;
+        // outer loop iterate through projected attribute names
         for (std::string attrName : attrNames) {
-            attrCounter = 0;
-            dataBufferPtr = nullIndicatorSize;
+            int oldDataPtr = oldNullIndicatorSize;
+            int oldAttrCounter = 0;
+            // inner loop iterate through all attributes
             for (Attribute attr : attrs) {
+                // one project attribute found
                 if (attrName == attr.name) {
-                    byteIdx = attrCounter / 8;
-                    bitIdx = attrCounter % 8;
-                    attrIsNull = nullIndicatorBuffer[byteIdx] & (int) 1 << (int) (7 - bitIdx);
+                    int byteIdx = oldAttrCounter / 8;
+                    int bitIdx = oldAttrCounter % 8;
+                    bool attrIsNull = oldNullIndicator[byteIdx] & (int) 1 << (int) (7 - bitIdx);
+                    // project attribute is null, modify nullIndicator of projected data
                     if (attrIsNull) {
-                        projectByteIdx = projectAttrCounter / 8;
-                        projectBitIdx = projectAttrCounter % 8;
-                        projectNullIndicatorBuffer[projectByteIdx] += pow(2, 7-projectBitIdx);
+                        int projectByteIdx = projectAttrCounter / 8;
+                        int projectBitIdx = projectAttrCounter % 8;
+                        projectNullIndicator[projectByteIdx] += pow(2, 7-projectBitIdx);
                     }
-                    else{
+                    // copy project attribute value into projected data
+                    else {
                         if (attr.type == TypeVarChar) {
                             unsigned varCharLen;
-                            memcpy(&varCharLen, (char*) dataBuffer + dataBufferPtr, VC_LEN_SIZE);
+                            memcpy(&varCharLen, (char*) oldData + oldDataPtr, VC_LEN_SIZE);
                             memcpy((char*) data + dataPtr, &varCharLen, VC_LEN_SIZE);
-                            memcpy((char*) data + dataPtr + VC_LEN_SIZE, (char*) dataBuffer + dataBufferPtr + VC_LEN_SIZE, varCharLen);
+                            memcpy((char*) data + dataPtr + VC_LEN_SIZE, (char*) oldData + oldDataPtr + VC_LEN_SIZE, varCharLen);
                             dataPtr += varCharLen + VC_LEN_SIZE;
                         }
                         else {
-                            memcpy((char*) data + dataPtr, (char*) dataBuffer + dataBufferPtr, INT_OR_FLT_SIZE);
+                            memcpy((char*) data + dataPtr, (char*) oldData + oldDataPtr, INT_OR_FLT_SIZE);
                             dataPtr += INT_OR_FLT_SIZE;
                         }
                     }
                     break;
                 }
+                // this attribute will not be projected, move oldDataPtr
                 else{
                     if (attr.type == TypeVarChar) {
                         unsigned varCharLen;
-                        memcpy(&varCharLen, (char*) dataBuffer + dataBufferPtr, VC_LEN_SIZE);
-                        dataBufferPtr += varCharLen + VC_LEN_SIZE;
+                        memcpy(&varCharLen, (char*) oldData + oldDataPtr, VC_LEN_SIZE);
+                        oldDataPtr += varCharLen + VC_LEN_SIZE;
                     }
                     else {
-                        dataBufferPtr += INT_OR_FLT_SIZE;
+                        oldDataPtr += INT_OR_FLT_SIZE;
                     }
                 }
-                attrCounter++;
+                oldAttrCounter++;
             }
-            if (attrCounter == attrs.size()) {
-                free(nullIndicatorBuffer);
-                free(projectNullIndicatorBuffer);
-                return -1;  // project attribute does not match any of the attributes
+            // project attribute does not match any of the attributes
+            if (oldAttrCounter == attrs.size()) {
+                free(oldNullIndicator);
+                free(projectNullIndicator);
+                return -1;
             }
             projectAttrCounter++;
         }
-        memcpy(data, projectNullIndicatorBuffer, projectNullIndicatorSize);
-        free(nullIndicatorBuffer);
-        free(projectNullIndicatorBuffer);
+        // copy projectNullIndicator into projected data
+        memcpy(data, projectNullIndicator, projectNullIndicatorSize);
+        free(oldNullIndicator);
+        free(projectNullIndicator);
         return 0;
     }
 
     BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned int numPages) {
         this->leftIn = leftIn;
         this->rightIn = rightIn;
-        this->condition = condition;
-        this->numPages = numPages;
         this->leftIn->getAttributes(this->leftAttrs);
         this->rightIn->getAttributes(this->rightAttrs);
-        this->isFirstGetNextTuple = true;
-        this->block = malloc(numPages * PAGE_SIZE);
         this->leftTuple = malloc(getMaxTupleLength(this->leftAttrs));
         this->rightTuple = malloc(getMaxTupleLength(this->rightAttrs));
-        this->isRM_EOF = false;
-        this->counter = 0;
+
+        this->condition = condition;
+        this->numPages = numPages;
+        this->isFirstGetNextTuple = true;
+        this->blockBuffer = malloc(numPages * PAGE_SIZE);
+        this->leftScanEnded = false;
+        this->tupleInfoCounter = 0;
         for (Attribute leftAttr : this->leftAttrs){
             if (this->condition.lhsAttr == leftAttr.name){
                 this->keyType = leftAttr.type;
@@ -392,77 +413,97 @@ namespace PeterDB {
     }
 
     BNLJoin::~BNLJoin() {
-        free(block);
+        free(blockBuffer);
         free(leftTuple);
         free(rightTuple);
     }
 
     RC BNLJoin::getNextTuple(void *data) {
-        int keyPtr;
-        short rightTupleLength;
+        // if the first time called, generate next block of left table and the first right tuple
         if (isFirstGetNextTuple) {
             isFirstGetNextTuple = false;
-            RC errCode = getNextBlockAndHash();
+            RC errCode = generateNextBlockAndHash();
             if (errCode != 0) return QE_EOF;
-            rightScan = rightIn->getNextTuple(rightTuple);
+            rightScanEnded = rightIn->getNextTuple(rightTuple);
         }
 
-        TupleRef leftTupleRef;
-        while (rightScan != RM_EOF || getNextBlockAndHash() == 0){
-            if (rightScan == RM_EOF){
+        // if right scan not ended, do not generate next block; otherwise, generate next block and reset iterator on right table
+        while (rightScanEnded != RM_EOF || generateNextBlockAndHash() == 0){
+            // if right scan ended, reset iterator on right table
+            if (rightScanEnded == RM_EOF){
                 rightIn->setIterator();
-                rightScan = rightIn->getNextTuple(rightTuple);
-                counter = 0;
+                rightScanEnded = rightIn->getNextTuple(rightTuple);
+                tupleInfoCounter = 0;
             }
-            parseTuple(rightTuple, keyPtr, rightTupleLength, rightAttrs, condition.rhsAttr);
-            if (keyType == TypeVarChar){
+            // parse right tuple
+            int keyOffset;
+            short rightTupleLength;
+            parseTuple(rightTuple, rightAttrs, condition.rhsAttr, keyOffset, rightTupleLength);
+
+            TupleInfo leftTupleInfo;
+            if (keyType == TypeVarChar) {
                 unsigned keyVarCharLen;
-                memcpy(&keyVarCharLen, (char*) rightTuple + keyPtr, VC_LEN_SIZE);
+                memcpy(&keyVarCharLen, (char*) rightTuple + keyOffset, VC_LEN_SIZE);
                 char* keyVarChar = (char*) malloc(keyVarCharLen);
-                memcpy(keyVarChar, (char*) rightTuple + keyPtr + VC_LEN_SIZE, keyVarCharLen);
+                memcpy(keyVarChar, (char*) rightTuple + keyOffset + VC_LEN_SIZE, keyVarCharLen);
                 std::string varCharRightKey = std::string(keyVarChar, keyVarCharLen);
                 free(keyVarChar);
-                if (varCharHashTable.find(varCharRightKey) != varCharHashTable.end() && counter < varCharHashTable[varCharRightKey].size()){
-                    leftTupleRef = varCharHashTable[varCharRightKey][counter];
-                    counter++;
-                    memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
+
+                // if found matching left tuple and not all matching left tuples have been found,
+                // get a left tuple on the block matched with the right tuple
+                std::vector<TupleInfo> lhsTupleInfoVector = varCharHashTable[varCharRightKey];
+                if (varCharHashTable.find(varCharRightKey) != varCharHashTable.end() && tupleInfoCounter < lhsTupleInfoVector.size()){
+                    leftTupleInfo = lhsTupleInfoVector[tupleInfoCounter];
+                    tupleInfoCounter++;
+                    memcpy(leftTuple, (char*) blockBuffer + leftTupleInfo.offsetOnBlock, leftTupleInfo.length);
                 }
+                // if matching left tuple not found or all matching left tuples have been found, get next right tuple
                 else {
-                    rightScan = rightIn->getNextTuple(rightTuple);
-                    counter = 0;
+                    rightScanEnded = rightIn->getNextTuple(rightTuple);
+                    tupleInfoCounter = 0;
                     continue;
                 }
             }
             else if (keyType == TypeInt) {
                 int intRightKey;
-                memcpy(&intRightKey, (char*) rightTuple + keyPtr, INT_SIZE);
-                if (intHashTable.find(intRightKey) != intHashTable.end() && counter < intHashTable[intRightKey].size()){
-                    leftTupleRef = intHashTable[intRightKey][counter];
-                    counter++;
-                   // std::cout<<counter <<" "<< intHashTable[intRightKey].size()<<std::endl;
-                    memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
+                memcpy(&intRightKey, (char*) rightTuple + keyOffset, INT_SIZE);
+
+                // if found matching left tuple and not all matching left tuples have been found,
+                // get a left tuple on the block matched with the right tuple
+                std::vector<TupleInfo> lhsTupleInfoVector = intHashTable[intRightKey];
+                if (intHashTable.find(intRightKey) != intHashTable.end() && tupleInfoCounter < lhsTupleInfoVector.size()){
+                    leftTupleInfo = lhsTupleInfoVector[tupleInfoCounter];
+                    tupleInfoCounter++;
+                    memcpy(leftTuple, (char*) blockBuffer + leftTupleInfo.offsetOnBlock, leftTupleInfo.length);
                 }
-               else {
-                   rightScan = rightIn->getNextTuple(rightTuple);
-                   counter = 0;
+                // if matching left tuple not found or all matching left tuples have been found, get next right tuple
+                else {
+                   rightScanEnded = rightIn->getNextTuple(rightTuple);
+                   tupleInfoCounter = 0;
                    continue;
-               }
+                }
             }
             else {
                 float realRightKey;
-                memcpy(&realRightKey, (char*) rightTuple + keyPtr, FLT_SIZE);
-                if (realHashTable.find(realRightKey) != realHashTable.end() && counter < intHashTable[realRightKey].size()){
-                    leftTupleRef = realHashTable[realRightKey][counter];
-                    counter++;
-                    memcpy(leftTuple, (char*) block + leftTupleRef.offset, leftTupleRef.length);
+                memcpy(&realRightKey, (char*) rightTuple + keyOffset, FLT_SIZE);
+
+                // if found matching left tuple and not all matching left tuples have been found,
+                // get a left tuple on the block matched with the right tuple
+                std::vector<TupleInfo> lhsTupleInfoVector = realHashTable[realRightKey];
+                if (realHashTable.find(realRightKey) != realHashTable.end() && tupleInfoCounter < lhsTupleInfoVector.size()){
+                    leftTupleInfo = lhsTupleInfoVector[tupleInfoCounter];
+                    tupleInfoCounter++;
+                    memcpy(leftTuple, (char*) blockBuffer + leftTupleInfo.offsetOnBlock, leftTupleInfo.length);
                 }
+                // if matching left tuple not found or all matching left tuples have been found, get next right tuple
                 else {
-                    rightScan = rightIn->getNextTuple(rightTuple);
-                    counter = 0;
+                    rightScanEnded = rightIn->getNextTuple(rightTuple);
+                    tupleInfoCounter = 0;
                     continue;
                 }
             }
-            generateJoinedTuple(leftTuple, rightTuple, leftTupleRef.length, rightTupleLength, leftAttrs, rightAttrs, data);
+
+            generateJoinedTuple(leftTuple, rightTuple, leftTupleInfo.length, rightTupleLength, leftAttrs, rightAttrs, data);
             return 0;
         }
         return QE_EOF;
@@ -475,68 +516,77 @@ namespace PeterDB {
         return 0;
     }
 
-    RC BNLJoin::getNextBlockAndHash() {
-        if (isRM_EOF){
-            return RM_EOF;
-        }
-        int tupleOffset = 0;
-        short tupleLength;
-        int keyPtr;
+    RC BNLJoin::generateNextBlockAndHash() {
+        if (leftScanEnded) return RM_EOF;
+        int offsetOnBlock = 0;
         int maxTupleLength = getMaxTupleLength(leftAttrs);
         intHashTable.clear();
         realHashTable.clear();
         varCharHashTable.clear();
-        while (leftIn->getNextTuple((char*) block + tupleOffset) != RM_EOF){
-            parseTuple((char*) block + tupleOffset, keyPtr, tupleLength, leftAttrs, condition.lhsAttr);
-            TupleRef tupleRef;
-            tupleRef.offset = tupleOffset;
-            tupleRef.length = tupleLength;
-            if (keyType == TypeInt){
-                int keyInt;
-                memcpy(&keyInt, (char*) block + tupleOffset + keyPtr, INT_SIZE);
-                if (intHashTable.find(keyInt) == intHashTable.end()){
-                    intHashTable[keyInt] = std::vector<TupleRef>();
-                }
-                intHashTable[keyInt].push_back(tupleRef);
-            }
+        while (leftIn->getNextTuple((char*) blockBuffer + offsetOnBlock) != RM_EOF){
+            // parse tuple and build tupleInfo
+            int keyOffset;
+            short tupleLength;
+            parseTuple((char*) blockBuffer + offsetOnBlock, leftAttrs, condition.lhsAttr, keyOffset, tupleLength);
+            TupleInfo tupleInfo;
+            tupleInfo.offsetOnBlock = offsetOnBlock;
+            tupleInfo.length = tupleLength;
 
-            if (keyType == TypeReal){
-                float keyFlt;
-                memcpy(&keyFlt, (char*) block + tupleOffset + keyPtr, FLT_SIZE);
-                if (realHashTable.find(keyFlt) == realHashTable.end()){
-                    realHashTable[keyFlt] = std::vector<TupleRef>();
-                }
-                realHashTable[keyFlt].push_back(tupleRef);
-            }
-
-            if (keyType == TypeVarChar){
+            if (keyType == TypeVarChar) {
                 unsigned varCharLen;
-                memcpy(&varCharLen, (char*) block + tupleOffset + keyPtr, VC_LEN_SIZE);
+                memcpy(&varCharLen, (char*) blockBuffer + offsetOnBlock + keyOffset, VC_LEN_SIZE);
                 char* varChar = (char*) malloc(varCharLen);
-                memcpy(varChar, (char*) block + tupleOffset + keyPtr + VC_LEN_SIZE, varCharLen);
+                memcpy(varChar, (char*) blockBuffer + offsetOnBlock + keyOffset + VC_LEN_SIZE, varCharLen);
                 std::string keyVarChar = std::string(varChar, varCharLen);
-                if (varCharHashTable.find(keyVarChar) == varCharHashTable.end()){
-                    varCharHashTable[keyVarChar] = std::vector<TupleRef>();
-                }
-                varCharHashTable[keyVarChar].push_back(tupleRef);
                 free(varChar);
+
+                // keyVarChar not found, insert new key-value into hash table
+                if (varCharHashTable.find(keyVarChar) == varCharHashTable.end()){
+                    varCharHashTable[keyVarChar] = std::vector<TupleInfo>();
+                }
+                // insert tupleInfo into mapped vector
+                varCharHashTable[keyVarChar].push_back(tupleInfo);
             }
-            if (tupleOffset + tupleLength > numPages * PAGE_SIZE - maxTupleLength) return 0;
-            tupleOffset += tupleLength;
+            else if (keyType == TypeInt) {
+                int keyInt;
+                memcpy(&keyInt, (char*) blockBuffer + offsetOnBlock + keyOffset, INT_SIZE);
+
+                // keyInt not found, insert new key-value into hash table
+                if (intHashTable.find(keyInt) == intHashTable.end()){
+                    intHashTable[keyInt] = std::vector<TupleInfo>();
+                }
+                // insert tupleInfo into mapped vector
+                intHashTable[keyInt].push_back(tupleInfo);
+            }
+            else {
+                float keyFlt;
+                memcpy(&keyFlt, (char*) blockBuffer + offsetOnBlock + keyOffset, FLT_SIZE);
+
+                // keyFlt not found, insert new key-value into hash table
+                if (realHashTable.find(keyFlt) == realHashTable.end()){
+                    realHashTable[keyFlt] = std::vector<TupleInfo>();
+                }
+                // insert tupleInfo into mapped vector
+                realHashTable[keyFlt].push_back(tupleInfo);
+            }
+
+            // if block is full, return 0
+            if (offsetOnBlock + tupleLength > numPages * PAGE_SIZE - maxTupleLength) return 0;
+            offsetOnBlock += tupleLength;
         }
-        isRM_EOF = true;
+        leftScanEnded = true;
         return 0;
     }
-
 
     INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn, const Condition &condition) {
         this->leftIn = leftIn;
         this->rightIn = rightIn;
-        this->condition = condition;
         this->leftIn->getAttributes(this->leftAttrs);
         this->rightIn->getAttributes(this->rightAttrs);
-        this->rightTuple = malloc(getMaxTupleLength(this->rightAttrs));
         this->leftTuple = malloc(getMaxTupleLength(this->leftAttrs));
+        this->rightTuple = malloc(getMaxTupleLength(this->rightAttrs));
+
+        this->condition = condition;
         this->isFirstGetNextTuple = true;
         for (Attribute leftAttr : this->leftAttrs){
             if (this->condition.lhsAttr == leftAttr.name){
@@ -551,15 +601,14 @@ namespace PeterDB {
     }
 
     RC INLJoin::getNextTuple(void *data) {
-        int dumKeyPtr;
-        short rightTupleLength;
-        short leftTupleLength;
         void* compareKey = malloc(getMaxTupleLength(leftAttrs));
-        if (isFirstGetNextTuple){
+
+        // if the first time called, get one left tuple, generate compareKey and set iterator on right table
+        if (isFirstGetNextTuple) {
             isFirstGetNextTuple = false;
             RC errCode = leftIn->getNextTuple(leftTuple);
             if (errCode != 0) return QE_EOF;
-            errCode = getTargetAttributeValue(leftAttrs, leftTuple, condition.lhsAttr, compareKey);
+            errCode = getTargetAttrValue(leftAttrs, leftTuple, condition.lhsAttr, compareKey);
             if (errCode != 0){
                 free(compareKey);
                 return errCode;
@@ -567,20 +616,31 @@ namespace PeterDB {
             rightIn->setIterator(compareKey, compareKey,true,true);
         }
 
-        RC rightScan = rightIn->getNextTuple(rightTuple);
-        while(rightScan != IX_EOF || leftIn->getNextTuple(leftTuple) != -1){
-            if (rightScan == IX_EOF){
-                RC errCode = getTargetAttributeValue(leftAttrs, leftTuple, condition.lhsAttr, compareKey);
+        // get one matching right tuple
+        RC rightScanEnded = rightIn->getNextTuple(rightTuple);
+
+        // if right scan not ended, do not get next left tuple; otherwise, get next left tuple, reset iterator on right table, and get a new matching right tuple
+        while (rightScanEnded != IX_EOF || leftIn->getNextTuple(leftTuple) != QE_EOF){
+            if (rightScanEnded == IX_EOF){
+                RC errCode = getTargetAttrValue(leftAttrs, leftTuple, condition.lhsAttr, compareKey);
                 if (errCode != 0){
                     free(compareKey);
                     return errCode;
                 }
                 rightIn->setIterator(compareKey, compareKey,true,true);
-                rightScan = rightIn->getNextTuple(rightTuple);
-                if (rightScan == IX_EOF) continue;
+                rightScanEnded = rightIn->getNextTuple(rightTuple);
+
+                // no matching right tuple exist for current left tuple
+                if (rightScanEnded == IX_EOF) continue;
             }
-            parseTuple(leftTuple, dumKeyPtr, leftTupleLength, leftAttrs, condition.lhsAttr);
-            parseTuple(rightTuple, dumKeyPtr, rightTupleLength, rightAttrs, condition.rhsAttr);
+
+            // parse left and right tuples, then join together, return 0
+            int dumKeyPtr;
+            short leftTupleLength;
+            short rightTupleLength;
+            parseTuple(leftTuple, leftAttrs, condition.lhsAttr, dumKeyPtr, leftTupleLength);
+            parseTuple(rightTuple, rightAttrs, condition.rhsAttr, dumKeyPtr, rightTupleLength);
+
             generateJoinedTuple(leftTuple, rightTuple, leftTupleLength, rightTupleLength, leftAttrs, rightAttrs, data);
             return 0;
         }
@@ -618,11 +678,6 @@ namespace PeterDB {
         this->aggItr->getAttributes(this->attrs);
         this->isFirstGetNextTuple = true;
         this->group = false;
-        this->minVal.push_back(std::numeric_limits<float>::max());
-        this->maxVal.push_back(std::numeric_limits<float>::min());
-        this->sumVal.push_back(0);
-        this->count.push_back(0);
-        this->avgVal.push_back(0);
     }
 
     Aggregate::Aggregate(Iterator *input, const Attribute &aggAttr, const Attribute &groupAttr, AggregateOp op) {
@@ -630,19 +685,15 @@ namespace PeterDB {
         this->aggAttr = aggAttr;
         this->op = op;
         this->aggItr->getAttributes(this->attrs);
+        this->isFirstGetNextTuple = true;
         this->groupAttr = groupAttr;
         this->group = true;
-        this->minVal.push_back(std::numeric_limits<float>::max());
-        this->maxVal.push_back(std::numeric_limits<float>::min());
-        this->sumVal.push_back(0);
-        this->count.push_back(0);
-        this->avgVal.push_back(0);
+
         this->groupCounter = 0;
         this->numGetNextTuple = 0;
         this->varCharGroupVector = std::vector<std::string>();
         this->intGroupVector = std::vector<int>();
         this->realGroupVector = std::vector<float>();
-        this->isFirstGetNextTuple = true;
     }
 
     Aggregate::~Aggregate() {
@@ -650,32 +701,37 @@ namespace PeterDB {
     }
 
     RC Aggregate::getNextTuple(void *data) {
-        if (!isFirstGetNextTuple && !group){
-            return QE_EOF;
-        }
+        if (!isFirstGetNextTuple && !group) return QE_EOF;
+
         int maxTupleLength = getMaxTupleLength(attrs);
         void* tupleBuffer = malloc(maxTupleLength);
-        void* aggAttributeBuffer = malloc(maxTupleLength);
+        void* aggAttrBuffer = malloc(maxTupleLength);
+
+        // prepare nullIndicator
         int nullIndicatorSize = 1;
         char nullIndicator = 0;  // 00000000
         memcpy((char*) data, &nullIndicator, nullIndicatorSize);
+
+        // not groupBy
         if (!group) {
             isFirstGetNextTuple = false;
+            initRunningInfoVectors();
 
+            // iterate through the table and maintain the running information
             while (aggItr->getNextTuple(tupleBuffer) != RM_EOF){
-                RC errCode = getTargetAttributeValue(attrs, tupleBuffer, aggAttr.name, aggAttributeBuffer);
+                RC errCode = getTargetAttrValue(attrs, tupleBuffer, aggAttr.name, aggAttrBuffer);
                 if (errCode != 0){
                     free(tupleBuffer);
-                    free(aggAttributeBuffer);
+                    free(aggAttrBuffer);
                     return errCode;
                 }
                 float attrVal = 0;
                 if (aggAttr.type == TypeInt){
                     int intVal;
-                    memcpy(&intVal, aggAttributeBuffer, INT_SIZE);
+                    memcpy(&intVal, aggAttrBuffer, INT_SIZE);
                     attrVal = (float) intVal;
                 }
-                else memcpy(&attrVal, aggAttributeBuffer, FLT_SIZE);
+                else memcpy(&attrVal, aggAttrBuffer, FLT_SIZE);
 
                 minVal.back() = attrVal < minVal.back() ? attrVal : minVal.back();
                 maxVal.back() = attrVal > maxVal.back() ? attrVal : maxVal.back();
@@ -684,85 +740,100 @@ namespace PeterDB {
             }
             avgVal.back() = sumVal.back() / count.back();
 
+            // output running information based on op
             switch (op) {
                 case MIN:
                     memcpy((char*) data + nullIndicatorSize, &minVal.back(), FLT_SIZE);
-                    minVal.pop_back();
                     break;
                 case MAX:
                     memcpy((char*) data + nullIndicatorSize, &maxVal.back(), FLT_SIZE);
-                    maxVal.pop_back();
                     break;
                 case SUM:
                     memcpy((char*) data + nullIndicatorSize, &sumVal.back(), FLT_SIZE);
-                    sumVal.pop_back();
                     break;
                 case AVG:
                     memcpy((char*) data + nullIndicatorSize, &avgVal.back(), FLT_SIZE);
-                    avgVal.pop_back();
                     break;
                 case COUNT:
                     memcpy((char*) data + nullIndicatorSize, &count.back(), FLT_SIZE);
-                    count.pop_back();
                     break;
             }
         }
+        // groupBy
         else {
             numGetNextTuple++;
+            // if called the first time, build the hash table that a key is an attribute value of
+            // the groupAttr, and the value is a vector of the aggAttr values in that group
             if (isFirstGetNextTuple) {
                 isFirstGetNextTuple = false;
-                void* groupAttributeBuffer = malloc(getMaxTupleLength(attrs));
+                void* groupAttrBuffer = malloc(getMaxTupleLength(attrs));
                 while (aggItr->getNextTuple(tupleBuffer) != RM_EOF) {
-                    RC errCode1 = getTargetAttributeValue(attrs, tupleBuffer, groupAttr.name, groupAttributeBuffer);
-                    RC errCode2 = getTargetAttributeValue(attrs, tupleBuffer, aggAttr.name, aggAttributeBuffer);
+                    // get attribute value of both groupAttr and aggAttr
+                    RC errCode1 = getTargetAttrValue(attrs, tupleBuffer, groupAttr.name, groupAttrBuffer);
+                    RC errCode2 = getTargetAttrValue(attrs, tupleBuffer, aggAttr.name, aggAttrBuffer);
                     if (errCode1 != 0 || errCode2 != 0) {
                         free(tupleBuffer);
-                        free(groupAttributeBuffer);
-                        free(aggAttributeBuffer);
+                        free(groupAttrBuffer);
+                        free(aggAttrBuffer);
                         return -1;
                     }
+
+                    // prepare aggAttrVal
                     float aggAttrVal;
                     if (aggAttr.type == TypeInt) {
                         int intAggAttrVal;
-                        memcpy(&intAggAttrVal, aggAttributeBuffer, INT_SIZE);
+                        memcpy(&intAggAttrVal, aggAttrBuffer, INT_SIZE);
                         aggAttrVal = (float) intAggAttrVal;
                     }
-                    else memcpy(&aggAttrVal, aggAttributeBuffer, FLT_SIZE);
+                    else memcpy(&aggAttrVal, aggAttrBuffer, FLT_SIZE);
 
                     if (groupAttr.type == TypeVarChar) {
                         unsigned varCharLen;
-                        memcpy(&varCharLen, groupAttributeBuffer, VC_LEN_SIZE);
+                        memcpy(&varCharLen, groupAttrBuffer, VC_LEN_SIZE);
                         char* varChar = (char*) malloc(varCharLen);
-                        memcpy(varChar, (char*) groupAttributeBuffer + VC_LEN_SIZE, varCharLen);
+                        memcpy(varChar, (char*) groupAttrBuffer + VC_LEN_SIZE, varCharLen);
                         std::string groupVarChar = std::string(varChar, varCharLen);
+                        free(varChar);
+
+                        // groupVarChar not found, insert new key-value into hash table
                         if (varCharHashTable.find(groupVarChar) == varCharHashTable.end()) {
                             varCharHashTable[groupVarChar] = std::vector<float>();
                         }
+                        // insert aggAttrVal into mapped vector
                         varCharHashTable[groupVarChar].push_back(aggAttrVal);
-                        free(varChar);
                     }
                     else if (groupAttr.type == TypeInt) {
                         int groupInt;
-                        memcpy(&groupInt, groupAttributeBuffer, INT_SIZE);
+                        memcpy(&groupInt, groupAttrBuffer, INT_SIZE);
+
+                        // groupInt not found, insert new key-value into hash table
                         if (intHashTable.find(groupInt) == intHashTable.end()) {
                             intHashTable[groupInt] = std::vector<float>();
                         }
+                        // insert aggAttrVal into mapped vector
                         intHashTable[groupInt].push_back(aggAttrVal);
                     }
                     else {
                         float groupFlt;
-                        memcpy(&groupFlt, groupAttributeBuffer, FLT_SIZE);
+                        memcpy(&groupFlt, groupAttrBuffer, FLT_SIZE);
+
+                        // groupFlt not found, insert new key-value into hash table
                         if (realHashTable.find(groupFlt) == realHashTable.end()) {
                             realHashTable[groupFlt] = std::vector<float>();
                         }
+                        // insert aggAttrVal into mapped vector
                         realHashTable[groupFlt].push_back(aggAttrVal);
                     }
                 }
-                free(groupAttributeBuffer);
+                free(groupAttrBuffer);
+
                 if (groupAttr.type == TypeVarChar) {
+                    // calculate running information for every group
                     for (auto pair : varCharHashTable) {
                         groupCounter++;
                         varCharGroupVector.push_back(pair.first);
+                        initRunningInfoVectors();
+                        // calculate running information for one group
                         for (float aggAttribute : pair.second) {
                             minVal.back() = aggAttribute < minVal.back() ? aggAttribute : minVal.back();
                             maxVal.back() = aggAttribute > maxVal.back() ? aggAttribute : maxVal.back();
@@ -770,17 +841,15 @@ namespace PeterDB {
                             count.back()++;
                         }
                         avgVal.back() = sumVal.back() / count.back();
-                        minVal.push_back(std::numeric_limits<float>::max());
-                        maxVal.push_back(std::numeric_limits<float>::min());
-                        sumVal.push_back(0);
-                        count.push_back(0);
-                        avgVal.push_back(0);
                     }
                 }
                 else if (groupAttr.type == TypeInt) {
+                    // calculate running information for every group
                     for (auto pair : intHashTable) {
                         groupCounter++;
                         intGroupVector.push_back(pair.first);
+                        initRunningInfoVectors();
+                        // calculate running information for one group
                         for (float aggAttribute : pair.second) {
                             minVal.back() = aggAttribute < minVal.back() ? aggAttribute : minVal.back();
                             maxVal.back() = aggAttribute > maxVal.back() ? aggAttribute : maxVal.back();
@@ -788,17 +857,15 @@ namespace PeterDB {
                             count.back()++;
                         }
                         avgVal.back() = sumVal.back() / count.back();
-                        minVal.push_back(std::numeric_limits<float>::max());
-                        maxVal.push_back(std::numeric_limits<float>::min());
-                        sumVal.push_back(0);
-                        count.push_back(0);
-                        avgVal.push_back(0);
                     }
                 }
                 if (groupAttr.type == TypeReal) {
+                    // calculate running information for every group
                     for (auto pair : realHashTable) {
                         groupCounter++;
                         realGroupVector.push_back(pair.first);
+                        initRunningInfoVectors();
+                        // calculate running information for one group
                         for (float aggAttribute : pair.second) {
                             minVal.back() = aggAttribute < minVal.back() ? aggAttribute : minVal.back();
                             maxVal.back() = aggAttribute > maxVal.back() ? aggAttribute : maxVal.back();
@@ -806,16 +873,14 @@ namespace PeterDB {
                             count.back()++;
                         }
                         avgVal.back() = sumVal.back() / count.back();
-                        minVal.push_back(std::numeric_limits<float>::max());
-                        maxVal.push_back(std::numeric_limits<float>::min());
-                        sumVal.push_back(0);
-                        count.push_back(0);
-                        avgVal.push_back(0);
                     }
                 }
             }
-            int dataPtr = nullIndicatorSize;
+            // the running information of all groups has been returned
             if (numGetNextTuple > groupCounter) return QE_EOF;
+
+            // prepare groupAttr for output data
+            int dataPtr = nullIndicatorSize;
             if (groupAttr.type == TypeVarChar){
                 unsigned varCharLen = varCharGroupVector.back().size();
                 memcpy((char*) data + dataPtr, &varCharLen, VC_LEN_SIZE);
@@ -833,31 +898,33 @@ namespace PeterDB {
                 dataPtr += FLT_SIZE;
                 realGroupVector.pop_back();
             }
+
+            // prepare running information for output data
             switch (op) {
                 case MIN:
-                    minVal.pop_back();
                     memcpy((char*) data + dataPtr, &minVal.back(), FLT_SIZE);
+                    minVal.pop_back();
                     break;
                 case MAX:
-                    maxVal.pop_back();
                     memcpy((char*) data + dataPtr, &maxVal.back(), FLT_SIZE);
+                    maxVal.pop_back();
                     break;
                 case SUM:
-                    sumVal.pop_back();
                     memcpy((char*) data + dataPtr, &sumVal.back(), FLT_SIZE);
+                    sumVal.pop_back();
                     break;
                 case AVG:
-                    avgVal.pop_back();
                     memcpy((char*) data + dataPtr, &avgVal.back(), FLT_SIZE);
+                    avgVal.pop_back();
                     break;
                 case COUNT:
-                    count.pop_back();
                     memcpy((char*) data + dataPtr, &count.back(), FLT_SIZE);
+                    count.pop_back();
                     break;
             }
         }
         free(tupleBuffer);
-        free(aggAttributeBuffer);
+        free(aggAttrBuffer);
         return 0;
     }
 
@@ -888,5 +955,13 @@ namespace PeterDB {
         attrs.push_back(attr);
 
         return 0;
+    }
+
+    void Aggregate::initRunningInfoVectors() {
+        minVal.push_back(std::numeric_limits<float>::max());
+        maxVal.push_back(std::numeric_limits<float>::min());
+        sumVal.push_back(0);
+        count.push_back(0);
+        avgVal.push_back(0);
     }
 } // namespace PeterDB

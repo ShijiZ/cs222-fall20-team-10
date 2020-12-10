@@ -49,13 +49,13 @@
 ### 3. Filter
 - Describe how your filter works (especially, how you check the condition.)
 
-  We iterate through the table and every time we get a tuple, we extract the attribute value to be compared, compare it with filter's compare key. If it satisfies the filter condition, we output this tuple.
+  Iterate through the table and every time a tuple is obtained, the attribute value to be compared is extracted, and compared with the filter's compare key. If it satisfies the filter condition, this tuple is returned as output.
 
 
 ### 4. Project
 - Describe how your project works.
 
-  We iterate through the table and every time we get a tuple, we extract the attributes to be projected, generate a new tuple with these attributes, then out put the new tuple.
+  Iterate through the table and every time a tuple is obtained, the attributes to be projected are extracted, and a new tuple with these attributes is generated. Then the new tuple is returned as output.
 
 
 ### 5. Block Nested Loop Join
@@ -63,18 +63,18 @@
 
   1. Initialize a memory block of size numPages * PAGE_SIZE. 
   
-  2. Iterate through the left table, load the left tuples into the block until the block is full or the left scan is completed. After the block is prepared, a separated hash table is built based on the join key. 
+  2. In the outer loop, iterate through the left table, load the left tuples into the block until the block is full or the left scan is completed. After the block is prepared, a hash table containing <key, value> pairs is built, where a key is an attribute value of the join attribute, and the value is a vector of tupleInfo (containing the block offset and length of a tuple). 
   
-  3. Iterate through the right table and get tuples from the right table. For every tuple from the right table, probe the hash table and get all the matched left tuples in the memory block and output all these matched (left tuple, right tuple) pairs. After the right scan is completed, if the left scan is not completed, reset the right iterator, clear the hash table and go to step ii. Otherwise, return QE_EOF.
+  3. In the inner loop, iterate through the right table. For every tuple from the right table, probe the hash table and get all the matched left tuples in the memory block and output all these matched (left tuple, right tuple) pairs. After the right scan is completed, if the left scan is not completed, reset the right iterator, clear the hash table and construct the second block of the left table by going back to step ii. Otherwise, return QE_EOF.
    
 
 
 ### 6. Index Nested Loop Join
 - Describe how your index nested loop join works. 
 
-  1. Iterate through the left table, get one left tuple from the left table and extract the attribute to be joined. Call the attribute value compare key.
+  1. In the outer loop, iterate through the left table, get one left tuple from the left table and extract the attribute value (Named compare key) to be joined. 
   
-  2. Iterate through the right table with a index scan iterator, do a equal search based on the compare key to get all the matched right tuples. Output all these (left tuple, right tuple) pairs. If the left scan is not completed, go to step i. Otherwise, return QE_EOF.
+  2. In the inner loop, iterate through the right table with an index scan iterator, do an equal search based on the compare key to get all the matched right tuples. Output all these (left tuple, right tuple) pairs. If the left scan is not completed, go back to step i. Otherwise, return QE_EOF.
 
 
 ### 7. Grace Hash Join (If you have implemented this feature)
@@ -82,16 +82,16 @@
 
   Not implemented.
 
+
 ### 8. Aggregation
 - Describe how your basic aggregation works.
 
-  We iterate through the table and every time we get a tuple, we extract the attribute to be aggregated, maintain the running information in according to the aggregation operation. After the iteration is completed, return the running information.
+  Iterate through the table and every time a tuple is obtained, the attribute to be aggregated is extracted, the running information according to the aggregation operation is maintained. After the iteration is completed, the running information is returned as output.
 
 
 - Describe how your group-based aggregation works. (If you have implemented this feature)
 
-  For group-based aggregation, after completing iterating through the table, we build a hash table using std::unordered_map<key, value>, where a key is a attribute value of the groupAttr, and the mapped value is a vector of the aggAttr values in that group.
-  After the hash table is built, we calculate the running information of each group and return these running information.
+  For group-based aggregation, a hash table containing <key, value> pairs is built during the iteration, where a key is an attribute value of the groupAttr, and the value is a vector of the aggAttr values in that group. The running information of each group is calculated based on the hash table and returned as output.
   
   
 
