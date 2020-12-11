@@ -637,7 +637,7 @@
       "input": "",
       "output": "",
       "comparison": "included",
-      "timeout": 1,
+      "timeout": 3,
       "points": null
     },
     {
@@ -647,7 +647,7 @@
       "input": "",
       "output": "",
       "comparison": "included",
-      "timeout": 1,
+      "timeout": 3,
       "points": null
     },
     {
