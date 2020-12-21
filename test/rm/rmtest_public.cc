@@ -380,7 +380,7 @@ namespace PeterDBTesting {
         }
 
         // Set up the iterator
-        std::vector<std::string> attributes{"age"};
+        std::vector<std::string> attributes{"Age"};
 
         ASSERT_EQ(rm.scan(tableName, "", PeterDB::NO_OP, NULL, attributes, rmsi), success)
                                     << "RelationManager::scan() should succeed.";
@@ -979,7 +979,7 @@ namespace PeterDBTesting {
 
         // Test Add Attribute
         PeterDB::Attribute attr{
-                "ssn", PeterDB::TypeInt, 4
+                "SSN", PeterDB::TypeInt, 4
         };
         ASSERT_EQ(rm.addAttribute(tableName, attr), success) << "RelationManager::addAttribute() should succeed.";
 
